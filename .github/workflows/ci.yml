@@ -21,10 +21,13 @@ jobs:
         include:
           - platform: Ubuntu 24.04 x86_64
             runner: ubuntu-24.04
+            release-platform: linux-x86_64
           - platform: Ubuntu 24.04 ARM64
             runner: ubuntu-24.04-arm
+            release-platform: linux-aarch64
           - platform: macOS 26 ARM64
             runner: macos-26
+            release-platform: macos-arm64
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Check out repository
@@ -41,6 +44,13 @@ jobs:
 
       - name: Run smoke tests
         run: scripts/smoke-test.sh "$(swift build -c release --show-bin-path)/vernissagectl"
+
+      - name: Install Swift Static Linux SDK
+        if: runner.os == 'Linux'
+        run: scripts/install-static-linux-sdk.sh
+
+      - name: Build distributable release archive
+        run: scripts/build-release.sh "${{ matrix.release-platform }}" current dist
 
   scripts:
     name: Validate shell scripts

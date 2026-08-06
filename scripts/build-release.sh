@@ -14,11 +14,14 @@ script_directory="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 project_directory="$(dirname "$script_directory")"
 
 case "$platform" in
-    linux-x86_64|linux-aarch64)
-        build_arguments="--static-swift-stdlib"
+    linux-x86_64)
+        swift_sdk="x86_64-swift-linux-musl"
+        ;;
+    linux-aarch64)
+        swift_sdk="aarch64-swift-linux-musl"
         ;;
     macos-arm64)
-        build_arguments=""
+        swift_sdk=""
         ;;
     *)
         printf 'Unsupported release platform: %s\n' "$platform" >&2
@@ -28,10 +31,13 @@ esac
 
 cd "$project_directory"
 
-# Intentional word splitting: build_arguments contains zero or one SwiftPM option.
-# shellcheck disable=SC2086
-swift build -c release --product vernissagectl $build_arguments
-binary_directory="$(swift build -c release --show-bin-path)"
+if [ -n "$swift_sdk" ]; then
+    swift build -c release --product vernissagectl --swift-sdk "$swift_sdk"
+    binary_directory="$(swift build -c release --show-bin-path --swift-sdk "$swift_sdk")"
+else
+    swift build -c release --product vernissagectl
+    binary_directory="$(swift build -c release --show-bin-path)"
+fi
 binary_path="${binary_directory}/vernissagectl"
 
 [ -x "$binary_path" ] || {
@@ -39,14 +45,36 @@ binary_path="${binary_directory}/vernissagectl"
     exit 1
 }
 
-reported_version="$("$binary_path" --version)"
-expected_version="vernissagectl ${version}"
+if [ -n "$swift_sdk" ]; then
+    if command -v readelf >/dev/null 2>&1; then
+        if readelf -l "$binary_path" | grep -Fq 'INTERP' \
+            || readelf -d "$binary_path" | grep -Fq '(NEEDED)'; then
+            printf 'Linux release executable is dynamically linked: %s\n' "$binary_path" >&2
+            exit 1
+        fi
+    elif command -v file >/dev/null 2>&1; then
+        file "$binary_path" | grep -Fq 'statically linked' || {
+            printf 'Linux release executable is not statically linked: %s\n' "$binary_path" >&2
+            file "$binary_path" >&2
+            exit 1
+        }
+    else
+        printf 'readelf or file is required to verify the Linux executable.\n' >&2
+        exit 1
+    fi
+fi
 
-[ "$reported_version" = "$expected_version" ] || {
-    printf 'Version mismatch: release is %s, executable reports %s\n' "$version" "$reported_version" >&2
-    printf 'Update VernissageVersion.current before creating the tag.\n' >&2
-    exit 1
-}
+reported_version="$("$binary_path" --version)"
+
+if [ "$version" != "current" ]; then
+    expected_version="vernissagectl ${version}"
+
+    [ "$reported_version" = "$expected_version" ] || {
+        printf 'Version mismatch: release is %s, executable reports %s\n' "$version" "$reported_version" >&2
+        printf 'Update VernissageVersion.current before creating the tag.\n' >&2
+        exit 1
+    }
+fi
 
 mkdir -p "$output_directory"
 output_directory="$(CDPATH= cd -- "$output_directory" && pwd)"

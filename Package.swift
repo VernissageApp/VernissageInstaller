@@ -13,9 +13,21 @@ let package = Package(
             targets: ["VernissageCLI"]
         )
     ],
+    dependencies: [
+        .package(
+            url: "https://github.com/apple/swift-argument-parser.git",
+            exact: "1.8.2"
+        )
+    ],
     targets: [
         .target(
-            name: "VernissageCore"
+            name: "VernissageCore",
+            dependencies: [
+                .product(
+                    name: "ArgumentParser",
+                    package: "swift-argument-parser"
+                )
+            ]
         ),
         .executableTarget(
             name: "VernissageCLI",

@@ -43,6 +43,10 @@ jobs:
       - name: Run tests
         run: swift test
 
+      - name: Install Swift Static Linux SDK
+        if: runner.os == 'Linux'
+        run: scripts/install-static-linux-sdk.sh
+
       - name: Build release archive
         run: scripts/build-release.sh "${{ matrix.platform }}" "${RELEASE_TAG#v}" dist
 
