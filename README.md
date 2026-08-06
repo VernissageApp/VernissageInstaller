@@ -13,7 +13,8 @@ and installation.
 
 ## Build locally
 
-Swift 6.2.4 or newer is required.
+Swift 6.2 or newer is required. GitHub Actions uses the Swift toolchain
+preinstalled on each supported runner.
 
 ```bash
 swift build
@@ -26,40 +27,9 @@ swift run vernissagectl --help
 The initial command prints:
 
 ```text
-vernissagectl 0.1.0
+vernissagectl 0.1.1
 The Vernissage installer is ready.
 ```
-
-## Create the first GitHub Release
-
-The release workflow runs for tags beginning with `v`. The tag version must
-match `VernissageVersion.current` in
-`Sources/VernissageCore/CommandRunner.swift`.
-
-For the first release:
-
-```bash
-git add .
-git commit -m "Create the initial vernissagectl release"
-git branch -M main
-git remote add origin git@github.com:VernissageApp/VernissageInstaller.git
-git push -u origin main
-
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-The tag push creates a GitHub Release containing:
-
-```text
-vernissagectl-linux-x86_64.tar.gz
-vernissagectl-linux-aarch64.tar.gz
-vernissagectl-macos-arm64.tar.gz
-SHA256SUMS
-```
-
-Enable **Release immutability** in the GitHub repository settings before
-publishing the first release.
 
 ## Install
 
@@ -79,7 +49,7 @@ curl -fsSL https://install.joinvernissage.org | sudo sh
 Install a specific version:
 
 ```bash
-curl -fsSL https://install.joinvernissage.org | sudo sh -s -- --version 0.1.0
+curl -fsSL https://install.joinvernissage.org | sudo sh -s -- --version 0.1.1
 ```
 
 Verify the installation:
@@ -103,3 +73,7 @@ executable as `/usr/local/bin/vernissagectl`.
 
 The workflow refuses to package an executable whose reported version differs
 from the pushed tag.
+
+If a release workflow fails because of a temporary runner or GitHub service
+problem, open **Actions → Release → Run workflow** and enter the existing tag.
+The workflow will rebuild and publish that tag without moving it.

@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build, for example v0.1.0
+        required: true
+        type: string
+
+env:
+  RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
 permissions:
   contents: read
@@ -24,21 +33,21 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Swift
-        uses: swift-actions/setup-swift@v2
+        uses: actions/checkout@v7
         with:
-          swift-version: "6.2.4"
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Show Swift version
+        run: swift --version
 
       - name: Run tests
         run: swift test
 
       - name: Build release archive
-        run: scripts/build-release.sh "${{ matrix.platform }}" "${GITHUB_REF_NAME#v}" dist
+        run: scripts/build-release.sh "${{ matrix.platform }}" "${RELEASE_TAG#v}" dist
 
       - name: Upload release archive
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vernissagectl-${{ matrix.platform }}
           path: dist/*.tar.gz
@@ -53,10 +62,12 @@ jobs:
       contents: write
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.RELEASE_TAG }}
 
       - name: Download release archives
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
@@ -69,8 +80,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
-          gh release create "$GITHUB_REF_NAME" dist/* \
+          version="${RELEASE_TAG#v}"
+          gh release create "$RELEASE_TAG" dist/* \
             --verify-tag \
             --generate-notes \
             --title "vernissagectl ${version}"

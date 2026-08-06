@@ -8,7 +8,7 @@ final class CommandRunnerTests: XCTestCase {
         let result = runner.run(arguments: [])
 
         XCTAssertEqual(result.exitCode, 0)
-        XCTAssertTrue(result.standardOutput.contains("vernissagectl 0.1.0"))
+        XCTAssertTrue(result.standardOutput.contains("vernissagectl 0.1.1"))
         XCTAssertTrue(result.standardOutput.contains("The Vernissage installer is ready."))
         XCTAssertEqual(result.standardError, "")
     }
@@ -17,7 +17,7 @@ final class CommandRunnerTests: XCTestCase {
         let result = runner.run(arguments: ["--version"])
 
         XCTAssertEqual(result.exitCode, 0)
-        XCTAssertEqual(result.standardOutput, "vernissagectl 0.1.0\n")
+        XCTAssertEqual(result.standardOutput, "vernissagectl 0.1.1\n")
         XCTAssertEqual(result.standardError, "")
     }
 
@@ -25,7 +25,7 @@ final class CommandRunnerTests: XCTestCase {
         let result = runner.run(arguments: ["version"])
 
         XCTAssertEqual(result.exitCode, 0)
-        XCTAssertEqual(result.standardOutput, "vernissagectl 0.1.0\n")
+        XCTAssertEqual(result.standardOutput, "vernissagectl 0.1.1\n")
     }
 
     func testHelpListsAvailableCommands() {
