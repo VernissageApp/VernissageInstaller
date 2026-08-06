@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:VernissageInstaller}",
+            "name": "Debug vernissagectl",
+            "target": "vernissagectl",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug vernissagectl"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:VernissageInstaller}",
+            "name": "Release vernissagectl",
+            "target": "vernissagectl",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release vernissagectl"
+        }
+    ]
+}

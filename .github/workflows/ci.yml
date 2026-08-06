@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: Ubuntu 24.04 x86_64
+            runner: ubuntu-24.04
+          - platform: Ubuntu 24.04 ARM64
+            runner: ubuntu-24.04-arm
+          - platform: macOS 26 ARM64
+            runner: macos-26
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.2.4"
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build release executable
+        run: swift build -c release --product vernissagectl
+
+      - name: Run smoke tests
+        run: scripts/smoke-test.sh "$(swift build -c release --show-bin-path)/vernissagectl"
+
+  scripts:
+    name: Validate shell scripts
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate POSIX shell syntax
+        run: sh -n install.sh scripts/*.sh
+
+      - name: Run ShellCheck
+        run: shellcheck install.sh scripts/*.sh
