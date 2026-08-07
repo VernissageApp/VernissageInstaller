@@ -5,6 +5,10 @@
 distribution path: build, test, package, publish, download, checksum verification,
 and installation.
 
+> [!WARNING]
+> The installer scripts are at an early stage of development and are not ready
+> for use yet.
+
 ## Supported platforms
 
 - Ubuntu 24.04 x86_64
@@ -40,23 +44,14 @@ The Vernissage installer is ready.
 
 ## Install
 
-Until `install.joinvernissage.org` serves the bootstrap script, it can be run
-directly from GitHub:
-
 ```bash
-curl -fsSL https://raw.githubusercontent.com/VernissageApp/VernissageInstaller/main/install.sh | sudo sh
-```
-
-After the installation domain has been configured:
-
-```bash
-curl -fsSL https://install.joinvernissage.org | sudo sh
+curl -fsSL https://joinvernissage.org/install.sh | sudo sh
 ```
 
 Install a specific version:
 
 ```bash
-curl -fsSL https://install.joinvernissage.org | sudo sh -s -- --version 0.1.2
+curl -fsSL https://joinvernissage.org/install.sh | sudo sh -s -- --version 0.1.2
 ```
 
 Verify the installation:
@@ -72,17 +67,3 @@ By default, the bootstrap script downloads the matching archive and
 executable as `/usr/local/bin/vernissagectl`.
 
 Linux archives contain fully statically linked executables built against musl.
-
-## Release a new version
-
-1. Update `VernissageVersion.current` and its tests.
-2. Commit and push the changes.
-3. Create and push the matching `vX.Y.Z` tag.
-4. Wait for the **Release** workflow to finish.
-
-The workflow refuses to package an executable whose reported version differs
-from the pushed tag.
-
-If a release workflow fails because of a temporary runner or GitHub service
-problem, open **Actions → Release → Run workflow** and enter the existing tag.
-The workflow will rebuild and publish that tag without moving it.
