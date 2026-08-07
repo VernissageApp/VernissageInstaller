@@ -10,7 +10,7 @@ fi
 platform="$1"
 version="${2#v}"
 output_directory="${3:-dist}"
-script_directory="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+script_directory="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 project_directory="$(dirname "$script_directory")"
 
 case "$platform" in
@@ -77,7 +77,7 @@ if [ "$version" != "current" ]; then
 fi
 
 mkdir -p "$output_directory"
-output_directory="$(CDPATH= cd -- "$output_directory" && pwd)"
+output_directory="$(CDPATH='' cd -- "$output_directory" && pwd)"
 temporary_directory="$(mktemp -d "${TMPDIR:-/tmp}/vernissagectl-release.XXXXXXXX")"
 trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
 
