@@ -3,6 +3,38 @@ import Testing
 
 struct ConsoleTests {
     @Test
+    func `Prompt is flushed before input is read`() {
+        let probe = PromptVisibilityProbe()
+        let console = Console(
+            colorsEnabled: false,
+            readInput: probe.read,
+            writeOutput: probe.write,
+            flushOutput: probe.flush
+        )
+
+        let answer = console.prompt("Instance domain:")
+
+        #expect(probe.outputVisibleWhenRead == "› Instance domain: ")
+        #expect(answer == "social.example.com")
+    }
+
+    @Test
+    func `Secure prompt is flushed before input is read`() {
+        let probe = PromptVisibilityProbe()
+        let console = Console(
+            colorsEnabled: false,
+            readSecureInput: probe.readSecure,
+            writeOutput: probe.write,
+            flushOutput: probe.flush
+        )
+
+        let answer = console.securePrompt("Password:")
+
+        #expect(probe.outputVisibleWhenRead == "› Password: ")
+        #expect(answer == "secret")
+    }
+
+    @Test
     func `Completion banner is separated and readable without colors`() {
         let output = ConsoleOutputBuffer()
         let console = Console(
@@ -58,6 +90,31 @@ struct ConsoleTests {
         #expect(output.text.contains("Web Push"))
         #expect(output.text.contains("Thank you for choosing Vernissage"))
         #expect(output.text.hasSuffix("\n\n"))
+    }
+}
+
+private final class PromptVisibilityProbe {
+    private var pendingOutput = ""
+    private var visibleOutput = ""
+    private(set) var outputVisibleWhenRead: String?
+
+    func write(_ value: String) {
+        pendingOutput += value
+    }
+
+    func flush() {
+        visibleOutput += pendingOutput
+        pendingOutput = ""
+    }
+
+    func read() -> String? {
+        outputVisibleWhenRead = visibleOutput
+        return " social.example.com "
+    }
+
+    func readSecure() -> String? {
+        outputVisibleWhenRead = visibleOutput
+        return "secret"
     }
 }
 

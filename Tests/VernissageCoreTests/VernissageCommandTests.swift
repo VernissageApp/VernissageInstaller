@@ -5,8 +5,8 @@ import Testing
 struct VernissageCommandTests {
     @Test
     func `Current version is formatted`() {
-        #expect(VernissageVersion.current == "0.1.3")
-        #expect(VernissageVersion.formatted == "vernissagectl 0.1.3")
+        #expect(VernissageVersion.current == "0.1.4")
+        #expect(VernissageVersion.formatted == "vernissagectl 0.1.4")
     }
 
     @Test

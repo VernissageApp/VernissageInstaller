@@ -24,6 +24,7 @@ struct Console {
     private let readInput: () -> String?
     private let readSecureInput: () -> String?
     private let writeOutput: (String) -> Void
+    private let flushOutput: () -> Void
 
     init(
         colorsEnabled: Bool,
@@ -31,12 +32,14 @@ struct Console {
         readSecureInput: @escaping () -> String? = { SecureTerminalInput.readLine() },
         writeOutput: @escaping (String) -> Void = { text in
             print(text, terminator: "")
-        }
+        },
+        flushOutput: @escaping () -> Void = { StandardStreams.flush() }
     ) {
         self.colorsEnabled = colorsEnabled
         self.readInput = readInput
         self.readSecureInput = readSecureInput
         self.writeOutput = writeOutput
+        self.flushOutput = flushOutput
     }
 
     static func live(colorsEnabled: Bool) -> Console {
@@ -134,11 +137,13 @@ struct Console {
 
     func prompt(_ question: String) -> String? {
         writeOutput("\(styled("›", ANSI.cyan)) \(question) ")
+        flushOutput()
         return readInput()?.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func securePrompt(_ question: String) -> String? {
         writeOutput("\(styled("›", ANSI.cyan)) \(question) ")
+        flushOutput()
         return readSecureInput()
     }
 
@@ -170,6 +175,18 @@ struct Console {
         return Musl.isatty(Musl.STDOUT_FILENO) == 1
         #else
         return false
+        #endif
+    }
+}
+
+private enum StandardStreams {
+    static func flush() {
+        #if canImport(Darwin)
+        _ = Darwin.fflush(nil)
+        #elseif canImport(Glibc)
+        _ = Glibc.fflush(nil)
+        #elseif canImport(Musl)
+        _ = Musl.fflush(nil)
         #endif
     }
 }

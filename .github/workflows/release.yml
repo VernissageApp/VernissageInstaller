@@ -88,4 +88,4 @@ jobs:
           gh release create "$RELEASE_TAG" dist/* \
             --verify-tag \
             --generate-notes \
-            --title "vernissagectl ${version}"
+            --title "VernissageInstaller ${version}"
