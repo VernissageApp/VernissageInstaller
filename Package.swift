@@ -17,6 +17,10 @@ let package = Package(
         .package(
             url: "https://github.com/apple/swift-argument-parser.git",
             exact: "1.8.2"
+        ),
+        .package(
+            url: "https://github.com/jpsim/Yams.git",
+            exact: "6.2.2"
         )
     ],
     targets: [
@@ -26,6 +30,10 @@ let package = Package(
                 .product(
                     name: "ArgumentParser",
                     package: "swift-argument-parser"
+                ),
+                .product(
+                    name: "Yams",
+                    package: "Yams"
                 )
             ]
         ),

@@ -1,13 +1,15 @@
 # Vernissage Installer
 
 `vernissagectl` is the command-line installer and administration tool for
-[Vernissage](https://joinvernissage.org). This first release verifies the full
-distribution path: build, test, package, publish, download, checksum verification,
-and installation.
+[Vernissage](https://joinvernissage.org). It installs a complete instance with
+Docker and provides the commands needed for routine operation, diagnostics,
+updates, and PostgreSQL recovery.
 
 > [!WARNING]
-> The installer scripts are at an early stage of development and are not ready
-> for use yet.
+> `vernissagectl` is currently experimental and undergoing active testing. Its
+> commands are already complete enough for initial installation and day-to-day
+> management of a Vernissage instance, but behavior and configuration formats
+> may still change. Keep current off-server backups of all important data.
 
 ## Supported platforms
 
@@ -15,55 +17,424 @@ and installation.
 - Ubuntu 24.04 ARM64
 - macOS 26 ARM64
 
-## Build locally
-
-Swift 6.2 or newer is required for development. Static Linux releases use the
-matching Swift 6.3.3 toolchain and Static Linux SDK. GitHub Actions uses the
-toolchain preinstalled on each supported runner.
-
-The CLI uses
-[Swift Argument Parser](https://github.com/apple/swift-argument-parser) and
-Foundation. Linux release artifacts are built with the official Swift Static
-Linux SDK and do not require Swift or additional dynamic libraries on the
-target server.
-
-```bash
-swift build
-swift test
-swift run vernissagectl
-swift run vernissagectl --version
-swift run vernissagectl --help
-```
-
-The initial command prints:
-
-```text
-vernissagectl 0.1.2
-The Vernissage installer is ready.
-```
-
-## Install
+## Install vernissagectl
 
 ```bash
 curl -fsSL https://joinvernissage.org/install.sh | sudo sh
 ```
 
-Install a specific version:
+To install a specific release:
 
 ```bash
-curl -fsSL https://joinvernissage.org/install.sh | sudo sh -s -- --version 0.1.2
+curl -fsSL https://joinvernissage.org/install.sh | sudo sh -s -- --version X.Y.Z
 ```
+
+The bootstrap script detects the platform, downloads the matching archive and
+`SHA256SUMS` from GitHub Releases, verifies the checksum, and installs the
+executable as `/usr/local/bin/vernissagectl`. Linux releases are statically
+linked and do not require Swift on the target server.
 
 Verify the installation:
 
 ```bash
-vernissagectl
 vernissagectl --version
 vernissagectl --help
 ```
 
-By default, the bootstrap script downloads the matching archive and
-`SHA256SUMS` from GitHub Releases, verifies the checksum, and installs the
-executable as `/usr/local/bin/vernissagectl`.
+## Command overview
 
-Linux archives contain fully statically linked executables built against musl.
+| Command | Purpose |
+|---|---|
+| `vernissagectl install` | Installs and configures a new Vernissage instance. |
+| `vernissagectl services` | Shows which services are local, external, and managed by the installer. |
+| `vernissagectl status` | Shows the runtime state of installer-managed containers. |
+| `vernissagectl doctor [--full]` | Diagnoses configuration, dependencies, routing, and service health. |
+| `vernissagectl outdated` | Checks whether newer image digests exist for configured tags. |
+| `vernissagectl start <service\|all>` | Starts one managed service or the complete instance. |
+| `vernissagectl stop <service\|all>` | Stops one managed service or the complete instance. |
+| `vernissagectl restart <service\|all>` | Restarts one managed service or the complete instance. |
+| `vernissagectl logs <service> [--follow]` | Displays native Docker logs for a managed service. |
+| `vernissagectl update <component>` | Replaces a managed component with its currently published image or rebuilt source. |
+| `vernissagectl backup [destination]` | Creates a backup of installer-managed PostgreSQL. |
+| `vernissagectl restore <backup>` | Restores a compatible PostgreSQL backup. |
+| `vernissagectl version` | Prints the installed `vernissagectl` version. |
+
+Use `vernissagectl <command> --help` to display all options accepted by a
+specific command.
+
+## Selecting an installation
+
+Commands other than `install` load an existing `vernissage.yml`. Select it with
+the shared `--config` option (`-f`):
+
+```bash
+vernissagectl --config /srv/vernissage/vernissage.yml status
+```
+
+Without an explicit option, configuration is resolved in this order:
+
+1. `--config` or `-f`;
+2. the `VERNISSAGE_CONFIG` environment variable;
+3. `./vernissage.yml`;
+4. `./vernissage/vernissage.yml`.
+
+The loader never searches parent directories and never falls back when an
+explicit path is invalid. This prevents a command from accidentally managing a
+different instance on a host with multiple installations. The referenced
+`vernissage.secrets.yml` is always resolved relative to `vernissage.yml`.
+
+## `install`
+
+Start the interactive installer:
+
+```bash
+vernissagectl install
+```
+
+The installer performs these steps:
+
+1. verifies the Docker CLI, daemon, and Docker Compose plugin;
+2. generates an eight-letter instance identifier used to namespace containers,
+   volumes, the network, and the locally built Proxy image;
+3. collects the permanent instance domain and performs informational DNS and
+   local port 80/443 checks;
+4. configures an existing PostgreSQL database or creates a local `postgres:18`
+   container, then verifies connection and migration permissions in a temporary
+   schema;
+5. configures an existing Redis service or creates a local persistent Redis
+   container, then verifies `PING`, `SET`, `GET`, and `DEL`;
+6. configures AWS S3, another S3-compatible service, or local MinIO, then checks
+   the bucket and performs a temporary upload, download, comparison, and delete;
+7. starts API and Jobs from `mczachurski/vernissage-server:latest`, waits for
+   their health endpoints, and verifies the migrated database tables;
+8. creates and verifies the permanent administrator through the Vernissage API,
+   assigns its role, and blocks the temporary `admin` account;
+9. starts Web and Push, configures their internal endpoints, and verifies both;
+10. builds the Nginx Proxy and optionally starts Caddy for development or
+    production HTTPS;
+11. verifies public Web and API routing and writes the installation files.
+
+PostgreSQL, Redis, MinIO, API, Jobs, Web, Push, and Proxy remain on a private
+Docker network unless external access is explicitly required. The generated
+Proxy preserves Vernissage-specific API, ActivityPub, feed, and browser routing.
+
+> [!WARNING]
+> The domain is the permanent federated identity of the instance. Changing it
+> later can break existing ActivityPub relationships.
+
+### Infrastructure choices
+
+- An existing managed PostgreSQL service with automatic backups, monitoring,
+  and tested upgrades is recommended. A local Docker volume survives container
+  replacement but is not protection against disk or server failure.
+- Both local and external Redis are suitable. Redis does not hold primary
+  account or media data, but losing it can discard pending jobs.
+- AWS S3 is the most thoroughly tested storage option. Other S3-compatible
+  services and local MinIO require their own monitoring, capacity planning,
+  updates, and off-server backup strategy.
+
+Local MinIO is built from the pinned
+`RELEASE.2025-10-15T17-29-55Z` source release because maintained official
+community images are no longer published.
+
+### HTTPS choices
+
+- `development` starts Caddy with its internal certificate authority and
+  exports `vernissage/caddy/root.crt`. Every client must trust this certificate.
+- `production` starts Caddy with automatic Let's Encrypt issuance and renewal.
+  The domain must resolve publicly to the server and ports 80 and 443 must be
+  reachable from the Internet.
+- `manual` leaves certificates and public routing to an external proxy, load
+  balancer, or CDN. Proxy is published on the selected host port, defaulting to
+  `8080`.
+
+Only one built-in Caddy container can bind ports 80 and 443 on a single server
+IP. Multiple instances on the same host should use manually managed HTTPS, a
+shared external reverse proxy, separate Proxy ports, or separate server IPs.
+
+### Installation files
+
+After a successful installation, the selected installation directory contains:
+
+- `vernissage/vernissage.yml` — non-secret identity, service, container,
+  volume, network, image, path, and public-access configuration;
+- `vernissage/vernissage.secrets.yml` — runtime secrets needed to manage and
+  recreate services;
+- generated Proxy files and, when applicable, Caddy configuration and the
+  development root certificate.
+
+Both configuration files are written atomically with mode `0600`. The secrets
+file is referenced by relative name and ignored by Git. Keep the files together
+for future management commands and store an encrypted copy of the secrets file
+in a secure location. Neither file is a backup of PostgreSQL, S3/MinIO, or
+Docker volumes. The administrator password and access token are not persisted.
+
+### Non-interactive installation
+
+Use `--non-interactive` for CI and provisioning scripts. All applicable
+non-secret values must be provided as options; the installer validates the
+entire plan before contacting Docker and never falls back to a prompt.
+
+Passwords are not accepted as command-line options or environment variables.
+Their only automation input is a mode-`0600` secrets file:
+
+```text
+VERNISSAGE_ADMIN_PASSWORD='replace-with-a-strong-password'
+VERNISSAGE_POSTGRES_PASSWORD='replace-with-a-strong-password'
+VERNISSAGE_REDIS_PASSWORD='replace-with-a-strong-password'
+VERNISSAGE_S3_SECRET_ACCESS_KEY='replace-with-the-s3-secret-key'
+VERNISSAGE_MINIO_ROOT_PASSWORD='replace-with-a-strong-password'
+```
+
+```bash
+chmod 600 /run/secrets/vernissage-install.env
+```
+
+Unknown or duplicate keys, malformed assignments, insecure permissions, and
+empty required values stop the installation. Known secrets that do not apply to
+the selected infrastructure mode may remain in a reusable template. A relative
+`--secrets-file` path is resolved from the directory in which the command was
+started.
+
+Example using existing PostgreSQL and Redis, AWS S3, and production HTTPS:
+
+```bash
+vernissagectl install \
+  --non-interactive \
+  --secrets-file /run/secrets/vernissage-install.env \
+  --install-directory /srv/vernissage-one \
+  --domain social.example.com \
+  --admin-name "Jan Kowalski" \
+  --admin-email jan@example.com \
+  --admin-username jankowalski \
+  --database-mode existing \
+  --postgres-host postgres.example.com \
+  --postgres-database vernissage \
+  --postgres-username vernissage \
+  --postgres-tls require \
+  --redis-mode existing \
+  --redis-host redis.example.com \
+  --redis-tls require \
+  --storage-mode aws \
+  --s3-region eu-central-1 \
+  --s3-bucket vernissage-media \
+  --s3-access-key-id AKIAEXAMPLE \
+  --https-mode production
+```
+
+Conditional options:
+
+- `--database-mode existing` requires `--postgres-host`,
+  `--postgres-database`, and `--postgres-username`; port defaults to `5432` and
+  TLS to `require`. Local mode requires only `--postgres-username` and creates
+  the `vernissage` database.
+- `--redis-mode existing` requires `--redis-host`; username defaults to
+  `default`, port to `6379`, and TLS to `require`. Local mode needs no additional
+  non-secret values.
+- `--storage-mode aws` requires region, bucket, and access key ID. `s3` requires
+  address, bucket, and access key ID and optionally accepts
+  `--s3-http-version automatic|http1`. `minio` requires
+  `--minio-root-username` and creates the `vernissage` bucket.
+- `--https-mode` accepts `development`, `production`, or `manual`; manual mode
+  optionally accepts `--proxy-port`, defaulting to `8080`.
+- `--admin-name`, `--web-csp-image-source`, and `--instance-id` are optional.
+  When omitted, the identifier is generated automatically.
+
+Run `vernissagectl install --help` for the complete option list.
+
+## `services`
+
+```bash
+vernissagectl services
+```
+
+Lists PostgreSQL, Redis, storage, API, Jobs, Web, Push, Proxy, and HTTPS and
+classifies each as local or external and installer-managed or unmanaged. The
+command reads configuration only; it does not contact Docker. Use `status` for
+runtime state.
+
+## `status`
+
+```bash
+vernissagectl status
+```
+
+Inspects every installer-managed container and displays its name, state,
+shortened immutable digest, published ports, and uptime. Configured containers
+that do not exist are reported as `missing`. External PostgreSQL, Redis, and S3
+services are excluded because the installer does not manage their runtime.
+
+## `doctor`
+
+```bash
+vernissagectl doctor
+vernissagectl doctor --full
+```
+
+Standard mode checks configuration and secrets, generated Proxy and Caddy
+files, Docker and its private network, managed containers, PostgreSQL
+`SELECT 1`, Redis `PING`, S3 bucket access, API and Jobs health, Web, Push,
+Proxy routing, DNS, and managed HTTPS. It does not restart or repair services.
+
+Full mode additionally creates and removes temporary resources to verify
+PostgreSQL migration permissions, Redis read/write/delete, and S3
+upload/download/delete. It also verifies administrator WebFinger and NodeInfo.
+Cleanup is always attempted.
+
+Results use `OK`, `WARN`, `FAIL`, and `SKIP`. Warnings return exit code `0`; any
+failure returns exit code `1`, allowing the command to be used by monitoring.
+
+## `outdated`
+
+```bash
+vernissagectl outdated
+```
+
+Compares the immutable digest used by each managed container with the digest
+currently published for the same tag and platform. It reads registry manifests
+without pulling layers or restarting containers. API and Jobs share one image
+lookup. PostgreSQL remains within its configured major tag, such as
+`postgres:18`. Locally built Proxy and MinIO images are reported as local builds.
+
+## `start`
+
+```bash
+vernissagectl start api
+vernissagectl start all
+```
+
+Starts one installer-managed container or the complete instance. With `all`,
+infrastructure starts before application services. All selected containers are
+verified before any state change begins.
+
+## `stop`
+
+```bash
+vernissagectl stop jobs
+vernissagectl stop all
+```
+
+Stops one installer-managed container or the complete instance. With `all`,
+services stop in reverse dependency order. External services are never changed.
+
+## `restart`
+
+```bash
+vernissagectl restart web
+vernissagectl restart all
+```
+
+Restarts one installer-managed container or the complete instance. With `all`,
+the dependency-aware order is preserved.
+
+The service selectors accepted by `start`, `stop`, `restart`, and `logs` are:
+
+```text
+postgresql (or postgres), redis, minio, api, jobs, web, push,
+proxy, https (or caddy)
+```
+
+Selecting a dependency configured as external returns an error without changing
+Docker state.
+
+## `logs`
+
+```bash
+vernissagectl logs api
+vernissagectl logs jobs --follow
+```
+
+Displays the selected container's native Docker logs. `--follow` streams new
+entries without buffering; press Control-C to stop following. This exits only
+`vernissagectl` and its Docker log client—it does not stop the service.
+
+## `update`
+
+```bash
+vernissagectl update server
+vernissagectl update web
+vernissagectl update push
+vernissagectl update proxy
+vernissagectl update caddy
+vernissagectl update redis
+vernissagectl update postgres
+vernissagectl update minio
+```
+
+`server` updates API and Jobs together. Registry-backed images are pulled;
+Proxy and MinIO are rebuilt locally. Container names, networks, aliases, ports,
+environment, restart policy, volumes, and previous running state are preserved.
+If the prepared digest is already in use, replacement is skipped.
+
+During replacement the old container is retained under a temporary name. A
+startup failure removes the new container and restores the previous one. After
+success, the temporary container is removed; old image layers remain available
+until Docker cleanup is performed separately.
+
+> [!CAUTION]
+> `update` does not create a backup. PostgreSQL stays on its configured major
+> tag, but migrations and application changes may still affect data. Create and
+> verify appropriate backups before updating production services.
+
+External dependencies and manually managed HTTPS cannot be updated by this
+command. `update all` is intentionally not implemented.
+
+## `backup`
+
+```bash
+vernissagectl backup
+vernissagectl backup /secure/off-server/vernissage.backup
+```
+
+Creates a versioned PostgreSQL custom-format dump for the local PostgreSQL
+container created by the installer. External or managed PostgreSQL services
+must use their provider's backup or snapshot system.
+
+Without a destination, the command generates a unique file name under the
+`backups` directory next to `vernissage.yml`. Existing files are never
+overwritten, and backups are written with mode `0600`.
+
+A backup can contain personal data, password hashes, and access tokens. Move it
+to secure off-server storage. It does not include S3/MinIO objects,
+configuration files, secrets files, or complete Docker volumes.
+
+## `restore`
+
+```bash
+vernissagectl restore /secure/off-server/vernissage.backup
+```
+
+Restores PostgreSQL for the local database managed by the installer. Before any
+database change, the command verifies the backup format, instance identifier,
+domain, database name, PostgreSQL major version, and embedded dump. The operator
+must type `RESTORE` to continue.
+
+Restore does not create a pre-restore backup. It first restores into a temporary
+database while the current application remains available. API and Jobs are
+stopped only for the final database switch, then their health is verified. If
+the switch or health check fails, the original database and previous service
+state are restored automatically. S3 and MinIO objects are never modified.
+
+## `version`
+
+```bash
+vernissagectl version
+vernissagectl --version
+```
+
+Prints the installed `vernissagectl` version. Both forms are equivalent for
+version checks in scripts.
+
+## Build locally
+
+Swift 6.2 or newer is required for development. Static Linux releases use the
+matching Swift toolchain and official Static Linux SDK.
+
+The project uses Foundation, Swift Argument Parser, Yams, and Swift Testing.
+
+```bash
+swift build
+swift test
+swift run vernissagectl --help
+swift run vernissagectl install --help
+```

@@ -85,7 +85,10 @@ cp "$binary_path" "${temporary_directory}/vernissagectl"
 chmod 0755 "${temporary_directory}/vernissagectl"
 
 if command -v strip >/dev/null 2>&1; then
-    strip "${temporary_directory}/vernissagectl"
+    strip "${temporary_directory}/vernissagectl" || {
+        printf 'Warning: could not strip %s; packaging the unstripped executable.\n' \
+            "$binary_path" >&2
+    }
 fi
 
 archive_path="${output_directory}/vernissagectl-${platform}.tar.gz"
