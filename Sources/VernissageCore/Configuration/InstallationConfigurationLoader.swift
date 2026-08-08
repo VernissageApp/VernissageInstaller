@@ -291,6 +291,7 @@ struct InstallationConfigurationLoader {
             accessKeyId: document.storage.accessKeyId,
             secretAccessKey: Secret(value: secrets.storage.secretAccessKey),
             http1OnlyMode: document.storage.http1OnlyMode,
+            imagesURL: document.storage.imagesURL,
             localResources: document.storage.localContainer.map {
                 LocalMinIOResources(
                     image: $0.image,
@@ -487,6 +488,7 @@ private struct InstallationConfigurationDocument: Decodable {
         let bucket: String
         let accessKeyId: String
         let http1OnlyMode: Bool
+        let imagesURL: String?
         let localContainer: LocalContainer?
     }
 

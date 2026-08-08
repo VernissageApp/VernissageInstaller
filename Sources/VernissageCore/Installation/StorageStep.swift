@@ -1,6 +1,7 @@
 import Foundation
 
 enum StorageStepError: LocalizedError, Equatable {
+    case missingConfiguration(String)
     case invalidValue(String)
     case dockerCommandFailed(action: String, details: String?)
     case localContainerAlreadyExists(String)
@@ -12,6 +13,8 @@ enum StorageStepError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
+        case .missingConfiguration(let name):
+            "The \(name) configuration is missing. Complete all previous installer steps first."
         case .invalidValue(let message):
             message
         case .dockerCommandFailed(let action, let details):
@@ -127,11 +130,13 @@ struct StorageStep {
         let bucket: String
         let accessKeyId: String
         let secretAccessKey: Secret
-        if case .aws(let providedRegion, let providedBucket, let providedAccessKeyID, let providedSecret) = input {
+        let imagesURL: String?
+        if case .aws(let providedRegion, let providedBucket, let providedAccessKeyID, let providedSecret, let providedImagesURL) = input {
             region = providedRegion
             bucket = providedBucket
             accessKeyId = providedAccessKeyID
             secretAccessKey = providedSecret
+            imagesURL = providedImagesURL
         } else {
             region = try requiredValue(
                 field: "AWS region",
@@ -141,6 +146,7 @@ struct StorageStep {
             bucket = try readBucket()
             accessKeyId = try readAccessKey(question: "AWS access key ID:")
             secretAccessKey = try readSecret(question: "AWS secret access key:")
+            imagesURL = try readImagesURL()
         }
         let configuration = StorageConfiguration(
             provider: .awsS3,
@@ -150,6 +156,7 @@ struct StorageStep {
             accessKeyId: accessKeyId,
             secretAccessKey: secretAccessKey,
             http1OnlyMode: true,
+            imagesURL: imagesURL,
             localResources: nil
         )
 
@@ -164,12 +171,14 @@ struct StorageStep {
         let accessKeyId: String
         let secretAccessKey: Secret
         let http1OnlyMode: Bool
-        if case .compatible(let providedAddress, let providedBucket, let providedAccessKeyID, let providedSecret, let providedHTTP1Only) = input {
+        let imagesURL: String?
+        if case .compatible(let providedAddress, let providedBucket, let providedAccessKeyID, let providedSecret, let providedHTTP1Only, let providedImagesURL) = input {
             address = providedAddress
             bucket = providedBucket
             accessKeyId = providedAccessKeyID
             secretAccessKey = providedSecret
             http1OnlyMode = providedHTTP1Only
+            imagesURL = providedImagesURL
         } else {
             address = try requiredValue(
                 field: "S3 address",
@@ -180,6 +189,7 @@ struct StorageStep {
             accessKeyId = try readAccessKey(question: "S3 access key ID:")
             secretAccessKey = try readSecret(question: "S3 secret access key:")
             http1OnlyMode = try readHTTP1OnlyMode()
+            imagesURL = try readImagesURL()
         }
         let configuration = StorageConfiguration(
             provider: .compatible,
@@ -189,6 +199,7 @@ struct StorageStep {
             accessKeyId: accessKeyId,
             secretAccessKey: secretAccessKey,
             http1OnlyMode: http1OnlyMode,
+            imagesURL: imagesURL,
             localResources: nil
         )
 
@@ -199,6 +210,9 @@ struct StorageStep {
 
     private func installLocalMinIO(context: InstallationContext, input: StorageStepInput?) throws {
         let names = context.resourceNames
+        guard let domain = context.server?.domain else {
+            throw StorageStepError.missingConfiguration("server and domain")
+        }
         console.warning(
             "MinIO Community no longer publishes maintained official container images. The installer will build the last security-fixed source release locally and pin it for this installation."
         )
@@ -242,6 +256,7 @@ struct StorageStep {
             accessKeyId: accessKeyId,
             secretAccessKey: secretAccessKey,
             http1OnlyMode: false,
+            imagesURL: "https://\(domain)/static-resource/",
             localResources: LocalMinIOResources(
                 image: Self.minIOImage,
                 containerName: names.minIOContainerName,
@@ -251,10 +266,16 @@ struct StorageStep {
         )
 
         try createMinIOBucket(configuration)
-        try testStorage(configuration, dockerNetwork: names.networkName)
+        try configureMinIOPublicRead(configuration)
+        try testStorage(
+            configuration,
+            dockerNetwork: names.networkName,
+            verifyAnonymousRead: true
+        )
         context.storage = configuration
         console.success("Local MinIO storage is running in \(names.minIOContainerName).")
         console.value(label: "Bucket", value: Self.minIOBucket)
+        console.value(label: "Public images URL", value: "https://\(domain)/static-resource/")
         console.value(label: "Volume", value: names.minIOVolumeName)
         console.value(label: "Network", value: names.networkName)
         console.warning("Configure an off-server media backup before making the instance public.")
@@ -362,9 +383,27 @@ struct StorageStep {
         throw StorageStepError.minIOStartupTimedOut(lastDetails)
     }
 
+    private func configureMinIOPublicRead(
+        _ configuration: StorageConfiguration
+    ) throws {
+        console.info("Allowing anonymous read-only access to objects in the MinIO bucket…")
+        _ = try requireStorageSuccess(
+            [
+                "s3api", "put-bucket-policy",
+                "--bucket", configuration.bucket,
+                "--policy", Self.minIOPublicReadPolicy(bucket: configuration.bucket)
+            ],
+            operation: "configure anonymous read-only bucket access",
+            configuration: configuration,
+            dockerNetwork: configuration.localResources?.networkName
+        )
+        console.success("MinIO objects can be downloaded publicly; listing and writes remain private.")
+    }
+
     private func testStorage(
         _ configuration: StorageConfiguration,
-        dockerNetwork: String? = nil
+        dockerNetwork: String? = nil,
+        verifyAnonymousRead: Bool = false
     ) throws {
         console.info("Testing bucket access and object upload, download, and deletion…")
         let objectKey = makeObjectKey()
@@ -403,6 +442,21 @@ struct StorageStep {
             configuration: configuration,
             dockerNetwork: dockerNetwork
         )
+
+        if verifyAnonymousRead {
+            let publicDownload = try requireStorageSuccess(
+                [
+                    "--no-sign-request",
+                    "s3", "cp", objectURI, "-", "--only-show-errors"
+                ],
+                operation: "download the test object anonymously",
+                configuration: configuration,
+                dockerNetwork: dockerNetwork
+            )
+            guard publicDownload.standardOutput == testPayload else {
+                throw StorageStepError.downloadedObjectDoesNotMatch
+            }
+        }
 
         _ = try requireStorageSuccess(
             ["s3api", "delete-object", "--bucket", configuration.bucket, "--key", objectKey],
@@ -449,6 +503,22 @@ struct StorageStep {
             case "", "1", "automatic", "no", "false": return false
             case "2", "http1", "yes", "true": return true
             default: console.warning("Choose 1 for automatic HTTP negotiation or 2 to force HTTP/1.")
+            }
+        }
+    }
+
+    private func readImagesURL() throws -> String? {
+        while true {
+            guard let input = console.prompt(
+                "Public image or CDN base URL (optional; press Enter to use the S3 bucket address):"
+            ) else {
+                return nil
+            }
+
+            do {
+                return try InstallationInputValidator.imagesURL(input)
+            } catch {
+                console.warning(error.localizedDescription)
             }
         }
     }
@@ -732,6 +802,12 @@ struct StorageStep {
     EXPOSE 9000 9001
     ENTRYPOINT ["minio"]
     """
+
+    static func minIOPublicReadPolicy(bucket: String) -> String {
+        """
+        {"Version":"2012-10-17","Statement":[{"Sid":"VernissagePublicRead","Effect":"Allow","Principal":{"AWS":["*"]},"Action":["s3:GetObject"],"Resource":["arn:aws:s3:::\(bucket)/*"]}]}
+        """
+    }
 }
 
 private struct S3CommandTarget {

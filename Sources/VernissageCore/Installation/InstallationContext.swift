@@ -125,7 +125,30 @@ struct StorageConfiguration: Equatable {
     let accessKeyId: String
     let secretAccessKey: Secret
     let http1OnlyMode: Bool
+    let imagesURL: String?
     let localResources: LocalMinIOResources?
+
+    init(
+        provider: StorageProvider,
+        address: String,
+        region: String?,
+        bucket: String,
+        accessKeyId: String,
+        secretAccessKey: Secret,
+        http1OnlyMode: Bool,
+        imagesURL: String? = nil,
+        localResources: LocalMinIOResources?
+    ) {
+        self.provider = provider
+        self.address = address
+        self.region = region
+        self.bucket = bucket
+        self.accessKeyId = accessKeyId
+        self.secretAccessKey = secretAccessKey
+        self.http1OnlyMode = http1OnlyMode
+        self.imagesURL = imagesURL
+        self.localResources = localResources
+    }
 }
 
 struct ServerHealth: Codable, Equatable {

@@ -13,7 +13,8 @@ struct StorageStepTests {
                 "1",
                 "eu-central-1",
                 "vernissage-media",
-                "AKIAEXAMPLE"
+                "AKIAEXAMPLE",
+                "https://cdn.example.com/vernissage"
             ]),
             secureInput: StorageInputQueue(["aws-secret"]),
             output: output,
@@ -30,6 +31,7 @@ struct StorageStepTests {
         #expect(configuration.accessKeyId == "AKIAEXAMPLE")
         #expect(configuration.secretAccessKey.value == "aws-secret")
         #expect(configuration.http1OnlyMode)
+        #expect(configuration.imagesURL == "https://cdn.example.com/vernissage/")
         #expect(configuration.localResources == nil)
         #expect(runner.invocations.count == 4)
 
@@ -119,13 +121,16 @@ struct StorageStepTests {
             .success("vernissage-abcdefgh-minio-data"),
             .success("container-id"),
             .success("bucket created"),
+            .success("bucket policy configured"),
             .success("bucket exists"),
             .success("uploaded"),
+            .success("storage-test-payload"),
             .success("storage-test-payload"),
             .success("deleted")
         ])
         let output = StorageOutputBuffer()
         let context = InstallationContext(instanceIdentifier: "abcdefgh")
+        context.server = ServerConfiguration(domain: "social.example.com")
         let step = makeStep(
             input: StorageInputQueue(["3", "minioadmin"]),
             secureInput: StorageInputQueue(["minio-secret", "minio-secret"]),
@@ -144,11 +149,12 @@ struct StorageStepTests {
         #expect(configuration.accessKeyId == "minioadmin")
         #expect(configuration.secretAccessKey.value == "minio-secret")
         #expect(configuration.http1OnlyMode == false)
+        #expect(configuration.imagesURL == "https://social.example.com/static-resource/")
         #expect(resources.image == "vernissage/minio:RELEASE.2025-10-15T17-29-55Z")
         #expect(resources.containerName == "vernissage-abcdefgh-minio")
         #expect(resources.volumeName == "vernissage-abcdefgh-minio-data")
         #expect(resources.networkName == "vernissage-abcdefgh-network")
-        #expect(runner.invocations.count == 13)
+        #expect(runner.invocations.count == 15)
 
         let imageBuild = runner.invocations[3]
         #expect(imageBuild.arguments.starts(with: ["build", "--quiet", "--tag"]))
@@ -164,6 +170,23 @@ struct StorageStepTests {
         let bucketCreation = runner.invocations[8]
         #expect(bucketCreation.arguments.containsSequence(["s3api", "create-bucket", "--bucket", "vernissage"]))
         #expect(bucketCreation.value(after: "--network") == "vernissage-abcdefgh-network")
+
+        let bucketPolicy = runner.invocations[9]
+        #expect(bucketPolicy.arguments.containsSequence([
+            "s3api", "put-bucket-policy", "--bucket", "vernissage"
+        ]))
+        let policy = try #require(bucketPolicy.value(after: "--policy"))
+        #expect(policy.contains("\"Action\":[\"s3:GetObject\"]"))
+        #expect(policy.contains("arn:aws:s3:::vernissage/*"))
+        #expect(policy.contains("s3:PutObject") == false)
+        #expect(policy.contains("s3:ListBucket") == false)
+
+        let anonymousDownload = runner.invocations[13]
+        #expect(anonymousDownload.arguments.contains("--no-sign-request"))
+        #expect(anonymousDownload.arguments.containsSequence([
+            "s3", "cp", "s3://vernissage/test-object.txt", "-"
+        ]))
+        #expect(output.text.contains("downloaded publicly"))
         #expect(output.text.contains("minio-secret") == false)
     }
 

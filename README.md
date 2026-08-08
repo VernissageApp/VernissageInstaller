@@ -105,14 +105,19 @@ The installer performs these steps:
    container, then verifies `PING`, `SET`, `GET`, and `DEL`;
 6. configures AWS S3, another S3-compatible service, or local MinIO, then checks
    the bucket and performs a temporary upload, download, comparison, and delete;
+   AWS and compatible services can optionally use a custom public image or CDN
+   base URL; local MinIO receives an anonymous `GetObject`-only bucket policy
+   that is verified with an unsigned download;
 7. starts API and Jobs from `mczachurski/vernissage-server:latest`, waits for
    their health endpoints, and verifies the migrated database tables;
 8. creates and verifies the permanent administrator through the Vernissage API,
    assigns its role, and blocks the temporary `admin` account;
 9. starts Web and Push, configures their internal endpoints, and verifies both;
-10. builds the Nginx Proxy and optionally starts Caddy for development or
-    production HTTPS;
-11. verifies public Web and API routing and writes the installation files.
+10. builds the Nginx Proxy, exposes local MinIO read-only at
+    `/static-resource/`, stores the public image base URL in Vernissage, then
+    restarts API and Jobs and waits for both health endpoints;
+11. optionally starts Caddy for development or production HTTPS;
+12. verifies public Web and API routing and writes the installation files.
 
 PostgreSQL, Redis, MinIO, API, Jobs, Web, Push, and Proxy remain on a private
 Docker network unless external access is explicitly required. The generated
@@ -135,7 +140,17 @@ Proxy preserves Vernissage-specific API, ActivityPub, feed, and browser routing.
 
 Local MinIO is built from the pinned
 `RELEASE.2025-10-15T17-29-55Z` source release because maintained official
-community images are no longer published.
+community images are no longer published. Its Docker port is not published on
+the host. Public objects are served through Vernissage Proxy as
+`https://<domain>/static-resource/<object-key>`, while write operations remain
+available only through the private Docker network. The installer grants
+anonymous `s3:GetObject` access to bucket objects but does not grant anonymous
+bucket listing, upload, modification, or deletion.
+
+For AWS S3 and other S3-compatible services, the optional public image URL is
+useful when a CDN or a separate public object-storage hostname serves media.
+Leave it empty to keep Vernissage's default URL derived from the configured S3
+address and bucket.
 
 ### HTTPS choices
 
@@ -219,6 +234,8 @@ vernissagectl install \
   --s3-region eu-central-1 \
   --s3-bucket vernissage-media \
   --s3-access-key-id AKIAEXAMPLE \
+  --images-url https://cdn.example.com/vernissage/ \
+  --web-csp-image-source https://cdn.example.com \
   --https-mode production
 ```
 
@@ -233,8 +250,12 @@ Conditional options:
   non-secret values.
 - `--storage-mode aws` requires region, bucket, and access key ID. `s3` requires
   address, bucket, and access key ID and optionally accepts
-  `--s3-http-version automatic|http1`. `minio` requires
-  `--minio-root-username` and creates the `vernissage` bucket.
+  `--s3-http-version automatic|http1`. Both modes optionally accept
+  `--images-url` for a public CDN or media base URL. `minio` requires
+  `--minio-root-username`, creates the `vernissage` bucket, and automatically
+  uses `https://<domain>/static-resource/`; it does not accept `--images-url`.
+- When `--images-url` uses a different origin than the Vernissage domain, pass
+  that origin without a path to `--web-csp-image-source` as well.
 - `--https-mode` accepts `development`, `production`, or `manual`; manual mode
   optionally accepts `--proxy-port`, defaulting to `8080`.
 - `--admin-name`, `--web-csp-image-source`, and `--instance-id` are optional.

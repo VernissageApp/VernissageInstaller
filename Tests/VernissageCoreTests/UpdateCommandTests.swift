@@ -108,6 +108,8 @@ struct UpdateCommandTests {
         ])
         #expect(plan.files[1].contents.contains("vernissage-api.internal:8080"))
         #expect(plan.files[1].contents.contains("vernissage-web.internal:8080"))
+        #expect(plan.files[1].contents.contains("vernissage-abcdefgh-minio:9000"))
+        #expect(plan.files[1].contents.contains("location /static-resource/"))
         #expect(plan.preparationCommands.count == 2)
         #expect(plan.preparationCommands[0].arguments == [
             "image", "build", "--tag", "vernissage-proxy:abcdefgh",

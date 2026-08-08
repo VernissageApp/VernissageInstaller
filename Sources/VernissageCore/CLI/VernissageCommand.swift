@@ -152,6 +152,7 @@ public struct InstallCommand: ParsableCommand {
         let pushStep = PushStep.live(colorsEnabled: !noColor)
         let publicAccessStep = PublicAccessStep.live(colorsEnabled: !noColor)
         let proxyStep = ProxyStep.live(colorsEnabled: !noColor)
+        let imageDeliveryStep = ImageDeliveryStep.live(colorsEnabled: !noColor)
         let caddyStep = CaddyStep.live(colorsEnabled: !noColor)
         let installationSummaryStep = InstallationSummaryStep.live(colorsEnabled: !noColor)
 
@@ -179,6 +180,7 @@ public struct InstallCommand: ParsableCommand {
             try pushStep.run(context: context)
             try publicAccessStep.run(context: context, providedMode: plan?.httpsMode)
             try proxyStep.run(context: context, providedHostPort: plan?.proxyPort)
+            try imageDeliveryStep.run(context: context)
             try caddyStep.run(context: context)
             try installationSummaryStep.run(context: context)
         } catch {

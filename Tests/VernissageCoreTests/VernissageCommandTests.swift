@@ -5,8 +5,8 @@ import Testing
 struct VernissageCommandTests {
     @Test
     func `Current version is formatted`() {
-        #expect(VernissageVersion.current == "0.1.4")
-        #expect(VernissageVersion.formatted == "vernissagectl 0.1.4")
+        #expect(VernissageVersion.current == "0.1.5")
+        #expect(VernissageVersion.formatted == "vernissagectl 0.1.5")
     }
 
     @Test
@@ -81,6 +81,7 @@ struct VernissageCommandTests {
             "--s3-bucket", "vernissage-media",
             "--s3-access-key-id", "access-key",
             "--s3-http-version", "http1",
+            "--images-url", "https://cdn.example.com/vernissage/",
             "--web-csp-image-source", "https://media.example.com",
             "--https-mode", "manual",
             "--proxy-port", "8443"
@@ -96,6 +97,7 @@ struct VernissageCommandTests {
         #expect(command.options.redisPort == 6380)
         #expect(command.options.storageMode == .s3)
         #expect(command.options.s3HTTPVersion == .http1)
+        #expect(command.options.imagesURL == "https://cdn.example.com/vernissage/")
         #expect(command.options.httpsMode == .manual)
         #expect(command.options.proxyPort == 8443)
     }

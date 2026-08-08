@@ -58,6 +58,7 @@ struct InstallationConfigurationLoaderTests {
         #expect(redisResources.volumeName == "vernissage-abcdefgh-redis-data")
         #expect(storage.provider == .localMinIO)
         #expect(storage.secretAccessKey.value == "storage-secret")
+        #expect(storage.imagesURL == "https://explicit.example.com/static-resource/")
         #expect(storageResources.containerName == "vernissage-abcdefgh-minio")
         #expect(services.image == "mczachurski/vernissage-server:latest")
         #expect(services.apiHealth == nil)
@@ -337,6 +338,7 @@ struct InstallationConfigurationLoaderTests {
           bucket: "vernissage"
           accessKeyId: "minio"
           http1OnlyMode: false
+          imagesURL: "https://\(domain)/static-resource/"
           localContainer:
             image: "minio/minio:latest"
             containerName: "vernissage-abcdefgh-minio"

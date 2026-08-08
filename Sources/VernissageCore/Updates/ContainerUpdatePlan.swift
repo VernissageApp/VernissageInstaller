@@ -232,7 +232,10 @@ struct ContainerUpdatePlanFactory {
                 path: contextURL.appendingPathComponent("nginx.conf").path,
                 contents: ProxyStep.makeNginxConfiguration(
                     apiUpstream: proxy.apiUpstream,
-                    webUpstream: proxy.webUpstream
+                    webUpstream: proxy.webUpstream,
+                    minIOUpstream: context.storage?.localResources.map {
+                        "\($0.containerName):9000"
+                    }
                 )
             )
         ]

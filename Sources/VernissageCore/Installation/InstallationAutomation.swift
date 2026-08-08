@@ -147,6 +147,9 @@ struct InstallationCommandOptions: ParsableArguments {
     @Option(name: .customLong("minio-root-username"), help: "Root username for local MinIO.")
     var minIORootUsername: String?
 
+    @Option(name: .customLong("images-url"), help: "Optional public image or CDN base URL for AWS S3 and S3-compatible storage.")
+    var imagesURL: String?
+
     @Option(name: .customLong("web-csp-image-source"), help: "Optional additional HTTP(S) image origin for the Web CSP.")
     var webCSPImageSource: String?
 
@@ -164,7 +167,8 @@ struct InstallationCommandOptions: ParsableArguments {
             redisPort != 6379 || redisTLS != .require || storageMode != nil ||
             s3Address != nil || s3Region != nil || s3Bucket != nil || s3AccessKeyID != nil ||
             s3HTTPVersion != .automatic || minIORootUsername != nil ||
-            webCSPImageSource != nil || httpsMode != nil || proxyPort != ProxyStep.defaultHostPort
+            imagesURL != nil || webCSPImageSource != nil || httpsMode != nil ||
+            proxyPort != ProxyStep.defaultHostPort
     }
 }
 
@@ -261,8 +265,8 @@ enum RedisStepInput: Equatable {
 }
 
 enum StorageStepInput: Equatable {
-    case aws(region: String, bucket: String, accessKeyID: String, secretAccessKey: Secret)
-    case compatible(address: String, bucket: String, accessKeyID: String, secretAccessKey: Secret, http1Only: Bool)
+    case aws(region: String, bucket: String, accessKeyID: String, secretAccessKey: Secret, imagesURL: String?)
+    case compatible(address: String, bucket: String, accessKeyID: String, secretAccessKey: Secret, http1Only: Bool, imagesURL: String?)
     case minIO(rootUsername: String, rootPassword: Secret)
 }
 
@@ -336,6 +340,7 @@ struct NonInteractiveInstallationPlan: Equatable {
         }
 
         let storage: StorageStepInput
+        let imagesURL = try InstallationInputValidator.imagesURL(options.imagesURL)
         switch try required(options.storageMode, "storage-mode") {
         case .aws:
             storage = .aws(
@@ -345,7 +350,8 @@ struct NonInteractiveInstallationPlan: Equatable {
                 secretAccessKey: try InstallationInputValidator.storageSecret(
                     secrets.required(InstallationSecrets.s3SecretAccessKey).value,
                     minimumLength: 1
-                )
+                ),
+                imagesURL: imagesURL
             )
         case .s3:
             storage = .compatible(
@@ -356,9 +362,15 @@ struct NonInteractiveInstallationPlan: Equatable {
                     secrets.required(InstallationSecrets.s3SecretAccessKey).value,
                     minimumLength: 1
                 ),
-                http1Only: options.s3HTTPVersion == .http1
+                http1Only: options.s3HTTPVersion == .http1,
+                imagesURL: imagesURL
             )
         case .minio:
+            guard imagesURL == nil else {
+                throw InstallationAutomationError.invalidOption(
+                    "Do not use --images-url with local MinIO. The installer exposes it automatically at https://<domain>/static-resource/."
+                )
+            }
             storage = .minIO(
                 rootUsername: try InstallationInputValidator.minIOUsername(required(options.minIORootUsername, "minio-root-username")),
                 rootPassword: try InstallationInputValidator.storageSecret(
@@ -561,6 +573,26 @@ enum InstallationInputValidator {
             )
         }
         if value.hasSuffix("/") { value.removeLast() }
+        return value
+    }
+
+    static func imagesURL(_ input: String?) throws -> String? {
+        var value = input?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard value.isEmpty == false else { return nil }
+        guard value.unicodeScalars.allSatisfy({ CharacterSet.whitespacesAndNewlines.contains($0) == false }),
+              let components = URLComponents(string: value),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              components.host?.isEmpty == false,
+              components.user == nil,
+              components.password == nil,
+              components.query == nil,
+              components.fragment == nil else {
+            throw InstallationAutomationError.invalidOption(
+                "Enter a complete HTTP or HTTPS public image base URL without credentials, query parameters, or a fragment."
+            )
+        }
+        if value.hasSuffix("/") == false { value.append("/") }
         return value
     }
 }

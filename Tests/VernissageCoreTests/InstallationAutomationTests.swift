@@ -68,6 +68,7 @@ struct InstallationAutomationTests {
             "--s3-region", "EU-CENTRAL-1",
             "--s3-bucket", "vernissage-media",
             "--s3-access-key-id", "access-key",
+            "--images-url", "https://cdn.example.com/vernissage",
             "--https-mode", "production"
         ])
         let secrets = completeSecrets()
@@ -99,7 +100,8 @@ struct InstallationAutomationTests {
             region: "eu-central-1",
             bucket: "vernissage-media",
             accessKeyID: "access-key",
-            secretAccessKey: Secret(value: "S3-secret-value")
+            secretAccessKey: Secret(value: "S3-secret-value"),
+            imagesURL: "https://cdn.example.com/vernissage/"
         ))
         #expect(plan.httpsMode == .production)
         #expect(plan.proxyPort == nil)
@@ -158,6 +160,33 @@ struct InstallationAutomationTests {
         ])
 
         #expect(throws: InstallationAutomationError.missingOption("postgres-host")) {
+            _ = try NonInteractiveInstallationPlan.resolve(
+                options: command.options,
+                secrets: completeSecrets()
+            )
+        }
+    }
+
+    @Test
+    func `Local MinIO rejects a custom images URL`() throws {
+        let command = try InstallCommand.parse([
+            "--non-interactive",
+            "--secrets-file", "secrets.env",
+            "--domain", "social.example.com",
+            "--admin-email", "jan@example.com",
+            "--admin-username", "jankowalski",
+            "--database-mode", "local",
+            "--postgres-username", "vernissage",
+            "--redis-mode", "local",
+            "--storage-mode", "minio",
+            "--minio-root-username", "vernissage",
+            "--images-url", "https://cdn.example.com/",
+            "--https-mode", "development"
+        ])
+
+        #expect(throws: InstallationAutomationError.invalidOption(
+            "Do not use --images-url with local MinIO. The installer exposes it automatically at https://<domain>/static-resource/."
+        )) {
             _ = try NonInteractiveInstallationPlan.resolve(
                 options: command.options,
                 secrets: completeSecrets()

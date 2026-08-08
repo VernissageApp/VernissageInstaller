@@ -78,6 +78,9 @@ struct ProxyStep {
             host: installation.web.networkAlias,
             port: 8080
         )
+        let minIOUpstream = try installation.storage?.localResources.map {
+            try upstream(host: $0.containerName, port: 9000)
+        }
 
         console.section("Vernissage Proxy")
         console.guidance(InstallationStepGuidance.proxy)
@@ -91,7 +94,8 @@ struct ProxyStep {
         let dockerfile = Self.makeDockerfile()
         let nginxConfiguration = Self.makeNginxConfiguration(
             apiUpstream: apiUpstream,
-            webUpstream: webUpstream
+            webUpstream: webUpstream,
+            minIOUpstream: minIOUpstream
         )
         let buildContext = try preparedBuildContext(
             dockerfile: dockerfile,
@@ -140,6 +144,9 @@ struct ProxyStep {
         }
         console.value(label: "API upstream", value: apiUpstream)
         console.value(label: "Web upstream", value: webUpstream)
+        if let minIOUpstream {
+            console.value(label: "Static resources upstream", value: minIOUpstream)
+        }
     }
 
     static func writeBuildContext(
@@ -192,7 +199,8 @@ struct ProxyStep {
             server: server,
             serverServices: serverServices,
             web: web,
-            publicAccess: publicAccess
+            publicAccess: publicAccess,
+            storage: context.storage
         )
     }
 
@@ -233,9 +241,30 @@ struct ProxyStep {
 
     static func makeNginxConfiguration(
         apiUpstream: String,
-        webUpstream: String
+        webUpstream: String,
+        minIOUpstream: String? = nil
     ) -> String {
+        let minIOUpstreamBlock = minIOUpstream.map {
+            """
+
+            upstream vernissage_minio {
+                server \($0) max_fails=2 fail_timeout=3s;
+                keepalive 16;
+            }
+            """
+        } ?? ""
+        let minIOLocationBlock = minIOUpstream == nil ? "" : """
+
+            location /static-resource/ {
+                limit_except GET HEAD {
+                    deny all;
+                }
+
+                proxy_pass http://vernissage_minio/vernissage/;
+            }
         """
+
+        return """
         upstream vernissage_api {
             server \(apiUpstream) max_fails=2 fail_timeout=3s;
             keepalive 16;
@@ -244,7 +273,7 @@ struct ProxyStep {
         upstream vernissage_web {
             server \(webUpstream) max_fails=2 fail_timeout=3s;
             keepalive 16;
-        }
+        }\(minIOUpstreamBlock)
 
         map "$http_content_type:$http_accept" $vernissage_route_to_api {
             default 0;
@@ -290,7 +319,7 @@ struct ProxyStep {
 
             location /atom/ {
                 proxy_pass http://vernissage_api;
-            }
+            }\(minIOLocationBlock)
 
             location / {
                 error_page 418 = @vernissage_api_by_header;
@@ -547,4 +576,5 @@ private struct CollectedProxyInstallation {
     let serverServices: ServerServicesConfiguration
     let web: WebConfiguration
     let publicAccess: PublicAccessConfiguration
+    let storage: StorageConfiguration?
 }

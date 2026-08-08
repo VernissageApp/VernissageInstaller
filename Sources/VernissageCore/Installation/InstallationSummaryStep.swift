@@ -297,6 +297,7 @@ struct InstallationSummaryStep {
         document.field("bucket", installation.storage.bucket, indent: 1)
         document.field("accessKeyId", installation.storage.accessKeyId, indent: 1)
         document.field("http1OnlyMode", installation.storage.http1OnlyMode, indent: 1)
+        document.field("imagesURL", installation.storage.imagesURL, indent: 1)
         append(
             localResources: installation.storage.localResources,
             to: &document,

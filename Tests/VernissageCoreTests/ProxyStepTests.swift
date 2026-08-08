@@ -62,6 +62,7 @@ struct ProxyStepTests {
         #expect(nginx.contains("proxy_pass http://vernissage_web"))
         #expect(nginx.contains("proxy_pass http://$vernissage_upstream") == false)
         #expect(nginx.contains("proxy_set_header X-Forwarded-Proto"))
+        #expect(nginx.contains("location /static-resource/") == false)
         #expect(nginx.contains("[fdaa::3]") == false)
 
         let build = runner.invocations[2]
@@ -95,6 +96,21 @@ struct ProxyStepTests {
         #expect(output.text.contains(InstallationStepGuidance.proxy))
         #expect(output.text.contains("routing was verified"))
         #expect(output.text.contains("must be protected by your external TLS terminator"))
+    }
+
+    @Test
+    func `Generated proxy exposes local MinIO through static resource path`() {
+        let nginx = ProxyStep.makeNginxConfiguration(
+            apiUpstream: "vernissage-api.internal:8080",
+            webUpstream: "vernissage-web.internal:8080",
+            minIOUpstream: "vernissage-abcdefgh-minio:9000"
+        )
+
+        #expect(nginx.contains("upstream vernissage_minio"))
+        #expect(nginx.contains("server vernissage-abcdefgh-minio:9000"))
+        #expect(nginx.contains("location /static-resource/"))
+        #expect(nginx.contains("limit_except GET HEAD"))
+        #expect(nginx.contains("proxy_pass http://vernissage_minio/vernissage/;"))
     }
 
     @Test

@@ -19,7 +19,7 @@ struct InstallationSummaryStepTests {
         #expect(summary.contains("schemaVersion: 2"))
         #expect(summary.contains("secretsFile: \"vernissage.secrets.yml\""))
         #expect(summary.contains("instance:\n  id: \"abcdefgh\""))
-        #expect(summary.contains("version: \"0.1.4\""))
+        #expect(summary.contains("version: \"0.1.5\""))
         #expect(summary.contains("installedAt: \"1970-01-01T00:00:00Z\""))
         #expect(summary.contains("domain: \"social.example.com\""))
         #expect(summary.contains("publicAddress: \"https://social.example.com\""))
@@ -27,6 +27,7 @@ struct InstallationSummaryStepTests {
         #expect(summary.contains("mode: \"localContainer\""))
         #expect(summary.contains("provider: \"awsS3\""))
         #expect(summary.contains("accessKeyId: \"visible-access-key-id\""))
+        #expect(summary.contains("imagesURL: \"https://cdn.example.com/vernissage/\""))
         #expect(summary.contains("hostPort: null"))
         #expect(summary.contains("localRootCertificatePath: \"/tmp/vernissage/caddy/root.crt\""))
         #expect(secrets.contains("schemaVersion: 2"))
@@ -288,6 +289,7 @@ struct InstallationSummaryStepTests {
             accessKeyId: "visible-access-key-id",
             secretAccessKey: Secret(value: "storage-secret-access-key"),
             http1OnlyMode: true,
+            imagesURL: "https://cdn.example.com/vernissage/",
             localResources: nil
         )
         context.serverServices = ServerServicesConfiguration(

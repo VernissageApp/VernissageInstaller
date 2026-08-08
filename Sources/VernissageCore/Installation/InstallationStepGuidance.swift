@@ -21,5 +21,7 @@ enum InstallationStepGuidance {
 
     static let proxy = "This step builds and starts the internal Vernissage Nginx proxy that routes API, federation, and machine-readable requests to Vernissage API while sending normal browser traffic to Vernissage Web. When Caddy is selected, Proxy remains private in the Docker network. With manually managed HTTPS, Proxy publishes a host HTTP port for your external TLS terminator."
 
+    static let imageDelivery = "This step configures the public base URL written into image links. Local MinIO is exposed safely through Vernissage Proxy under /static-resource/, while AWS S3 and other compatible services can use an optional public CDN or custom image address. API and Jobs are restarted afterward so both services reload the updated setting."
+
     static let caddy = "This step completes public HTTPS access. For Development and Production HTTPS it installs Caddy as the TLS terminator, publishes ports 80 and 443, redirects HTTP to HTTPS, and manages certificate renewal. For manually managed HTTPS it leaves the published Proxy endpoint ready for your external proxy, load balancer, CDN, or hosting platform."
 }
