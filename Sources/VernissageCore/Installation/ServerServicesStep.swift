@@ -53,7 +53,7 @@ struct ServerServicesStep {
         console: Console,
         commandRunner: any CommandRunning,
         waitBeforeRetry: @escaping () -> Void,
-        healthAttempts: Int = 30,
+        healthAttempts: Int = ServiceReadinessPolicy.maximumAttempts,
         operatingSystem: HostOperatingSystem
     ) {
         self.console = console
@@ -288,7 +288,9 @@ struct ServerServicesStep {
         named service: String,
         containerName: String
     ) throws -> ServerHealth {
-        console.info("Waiting up to approximately 30 seconds for the Vernissage \(service) health endpoint…")
+        console.info(
+            "Waiting up to \(ServiceReadinessPolicy.timeoutDescription) for the Vernissage \(service) health endpoint. The check is retried automatically…"
+        )
         var lastDetails: String?
 
         for attempt in 0..<healthAttempts {

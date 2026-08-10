@@ -93,6 +93,39 @@ struct ServerServicesStepTests {
     }
 
     @Test
+    func `Slow API startup remains eligible for health checks beyond thirty attempts`() throws {
+        var results: [CommandResult] = [
+            .failure("API container not found"),
+            .failure("Jobs container not found"),
+            .success("vernissage-abcdefgh-network"),
+            .success("image pulled"),
+            .success("api-container-id")
+        ]
+        results += Array(repeating: .failure("connection refused"), count: 31)
+        results += [
+            .success(healthyResponse),
+            .success("Users"),
+            .success("jobs-container-id"),
+            .success(healthyResponse)
+        ]
+
+        let runner = ServerCommandRunner(results: results)
+        let retries = RetryCounter()
+        let context = makeContext()
+        let step = makeStep(
+            runner: runner,
+            output: ServerOutputBuffer(),
+            waitBeforeRetry: retries.increment,
+            healthAttempts: ServiceReadinessPolicy.maximumAttempts
+        )
+
+        try step.run(context: context)
+
+        #expect(context.serverServices != nil)
+        #expect(retries.value == 31)
+    }
+
+    @Test
     func `Loopback dependencies use Docker host gateway on Linux`() throws {
         let runner = ServerCommandRunner(results: successfulResults())
         let context = makeContext(

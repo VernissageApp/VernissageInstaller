@@ -44,7 +44,7 @@ struct WebStep {
         console: Console,
         commandRunner: any CommandRunning,
         waitBeforeRetry: @escaping () -> Void,
-        readinessAttempts: Int = 30
+        readinessAttempts: Int = ServiceReadinessPolicy.maximumAttempts
     ) {
         self.console = console
         self.commandRunner = commandRunner
@@ -206,7 +206,9 @@ struct WebStep {
     }
 
     private func waitUntilReady(containerName: String) throws {
-        console.info("Waiting up to approximately 30 seconds for Vernissage Web…")
+        console.info(
+            "Waiting up to \(ServiceReadinessPolicy.timeoutDescription) for Vernissage Web. The check is retried automatically…"
+        )
         var lastDetails: String?
 
         for attempt in 0..<readinessAttempts {

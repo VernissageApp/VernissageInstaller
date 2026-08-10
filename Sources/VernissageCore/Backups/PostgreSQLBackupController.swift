@@ -97,7 +97,7 @@ struct PostgreSQLBackupController {
         waitBeforeHealthRetry: @escaping () -> Void = {
             Thread.sleep(forTimeInterval: 1)
         },
-        healthAttempts: Int = 30
+        healthAttempts: Int = ServiceReadinessPolicy.maximumAttempts
     ) {
         self.commandRunner = commandRunner
         self.archive = archive

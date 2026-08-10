@@ -47,7 +47,7 @@ struct ImageDeliveryStep {
         console: Console,
         commandRunner: any CommandRunning,
         waitBeforeRetry: @escaping () -> Void,
-        healthAttempts: Int = 30,
+        healthAttempts: Int = ServiceReadinessPolicy.maximumAttempts,
         operatingSystem: HostOperatingSystem
     ) {
         self.console = console
@@ -132,7 +132,9 @@ struct ImageDeliveryStep {
         named service: String,
         containerName: String
     ) throws {
-        console.info("Waiting up to approximately 30 seconds for Vernissage \(service)…")
+        console.info(
+            "Waiting up to \(ServiceReadinessPolicy.timeoutDescription) for Vernissage \(service). The check is retried automatically…"
+        )
         var lastDetails: String?
 
         for attempt in 0..<healthAttempts {

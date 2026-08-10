@@ -60,7 +60,7 @@ struct StorageStep {
         makeObjectKey: @escaping () -> String,
         testPayload: String,
         waitBeforeRetry: @escaping () -> Void,
-        readinessAttempts: Int = 30,
+        readinessAttempts: Int = ServiceReadinessPolicy.maximumAttempts,
         operatingSystem: HostOperatingSystem
     ) {
         self.console = console

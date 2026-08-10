@@ -49,7 +49,7 @@ struct ProxyStep {
         console: Console,
         commandRunner: any CommandRunning,
         waitBeforeRetry: @escaping () -> Void,
-        readinessAttempts: Int = 30,
+        readinessAttempts: Int = ServiceReadinessPolicy.maximumAttempts,
         prepareBuildContext: @escaping (String, String) throws -> URL = ProxyStep.writeBuildContext
     ) {
         self.console = console
@@ -425,9 +425,13 @@ struct ProxyStep {
         containerName: String
     ) throws {
         if let hostPort {
-            console.info("Waiting up to approximately 30 seconds for API and Web routing on host port \(hostPort)…")
+            console.info(
+                "Waiting up to \(ServiceReadinessPolicy.timeoutDescription) for API and Web routing on host port \(hostPort). The check is retried automatically…"
+            )
         } else {
-            console.info("Waiting up to approximately 30 seconds for API and Web routing inside the Docker network…")
+            console.info(
+                "Waiting up to \(ServiceReadinessPolicy.timeoutDescription) for API and Web routing inside the Docker network. The check is retried automatically…"
+            )
         }
         var lastDetails: String?
 

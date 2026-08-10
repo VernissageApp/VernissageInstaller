@@ -149,6 +149,56 @@ struct DatabaseStepTests {
     }
 
     @Test
+    func `Local PostgreSQL SQL test retries while the database is finishing startup`() throws {
+        let runner = DatabaseCommandRunner(
+            results: localDatabaseResults(
+                permissionResults: [
+                    .failure("FATAL: the database system is starting up"),
+                    .success("permission test completed")
+                ]
+            )
+        )
+        let output = DatabaseOutputBuffer()
+        let context = InstallationContext(instanceIdentifier: "abcdefgh")
+        let step = makeStep(
+            input: DatabaseInputQueue(["2", "vernissage_user"]),
+            secureInput: DatabaseInputQueue(["database-secret", "database-secret"]),
+            output: output,
+            runner: runner
+        )
+
+        try step.run(context: context)
+
+        #expect(context.database?.mode == .localContainer)
+        #expect(runner.invocations.count == 9)
+        #expect(output.text.contains("PostgreSQL is still finishing startup. Retrying the SQL test…"))
+    }
+
+    @Test
+    func `Local PostgreSQL SQL test does not retry permanent permission failure`() {
+        let runner = DatabaseCommandRunner(
+            results: localDatabaseResults(
+                permissionResults: [.failure("permission denied")]
+            )
+        )
+        let context = InstallationContext(instanceIdentifier: "abcdefgh")
+        let step = makeStep(
+            input: DatabaseInputQueue(["2", "vernissage_user"]),
+            secureInput: DatabaseInputQueue(["database-secret", "database-secret"]),
+            output: DatabaseOutputBuffer(),
+            runner: runner
+        )
+
+        let error = #expect(throws: DatabaseStepError.self) {
+            try step.run(context: context)
+        }
+
+        #expect(error == .databasePermissionTestFailed("permission denied"))
+        #expect(runner.invocations.count == 8)
+        #expect(context.database == nil)
+    }
+
+    @Test
     func `Failed PostgreSQL permission test stops database step`() {
         let input = DatabaseInputQueue([
             "1",
@@ -234,6 +284,20 @@ struct DatabaseStepTests {
             runner: runner,
             operatingSystem: operatingSystem
         )
+    }
+
+    private func localDatabaseResults(
+        permissionResults: [CommandResult]
+    ) -> [CommandResult] {
+        [
+            .failure("container not found"),
+            .failure("volume not found"),
+            .failure("network not found"),
+            .success("vernissage-abcdefgh-network"),
+            .success("vernissage-abcdefgh-postgres-data"),
+            .success("container-id"),
+            .success("accepting connections")
+        ] + permissionResults
     }
 }
 

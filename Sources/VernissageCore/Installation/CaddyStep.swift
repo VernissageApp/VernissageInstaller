@@ -49,7 +49,7 @@ struct CaddyStep {
         console: Console,
         commandRunner: any CommandRunning,
         waitBeforeRetry: @escaping () -> Void,
-        readinessAttempts: Int = 60,
+        readinessAttempts: Int = ServiceReadinessPolicy.maximumAttempts,
         operatingSystem: HostOperatingSystem,
         prepareConfiguration: @escaping (String) throws -> URL = CaddyStep.writeConfiguration
     ) {
@@ -327,7 +327,9 @@ struct CaddyStep {
         certificateTrust: HTTPSCertificateTrust,
         containerName: String
     ) throws {
-        console.info("Waiting for the HTTPS endpoint and managed certificate…")
+        console.info(
+            "Waiting up to \(ServiceReadinessPolicy.timeoutDescription) for the HTTPS endpoint and managed certificate. The check is retried automatically…"
+        )
         var lastDetails: String?
 
         for attempt in 0..<readinessAttempts {

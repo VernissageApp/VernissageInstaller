@@ -50,7 +50,7 @@ struct DatabaseStep {
         commandRunner: any CommandRunning,
         makeSchemaName: @escaping () -> String,
         waitBeforeRetry: @escaping () -> Void,
-        readinessAttempts: Int = 30,
+        readinessAttempts: Int = ServiceReadinessPolicy.maximumAttempts,
         operatingSystem: HostOperatingSystem
     ) {
         self.console = console
@@ -219,7 +219,11 @@ struct DatabaseStep {
         )
 
         console.info("Testing the local PostgreSQL connection and migration permissions…")
-        try testDatabase(configuration, dockerNetwork: names.networkName)
+        try testDatabase(
+            configuration,
+            dockerNetwork: names.networkName,
+            retryTransientStartupFailures: true
+        )
         context.database = configuration
         console.success("Local PostgreSQL database is running in \(names.postgresqlContainerName).")
         console.value(label: "Database", value: Self.databaseName)
@@ -326,7 +330,8 @@ struct DatabaseStep {
 
     private func testDatabase(
         _ configuration: DatabaseConfiguration,
-        dockerNetwork: String? = nil
+        dockerNetwork: String? = nil,
+        retryTransientStartupFailures: Bool = false
     ) throws {
         let schema = makeSchemaName()
         let sql = """
@@ -366,20 +371,40 @@ struct DatabaseStep {
             "--set", "ON_ERROR_STOP=1"
         ]
 
-        let result = try runDocker(
-            arguments,
-            environment: [
-                "PGPASSWORD": configuration.password.value,
-                "PGSSLMODE": configuration.tlsMode.rawValue
-            ],
-            standardInput: sql
-        )
+        let maximumAttempts = retryTransientStartupFailures ? readinessAttempts : 1
+        for attempt in 0..<maximumAttempts {
+            let result = try runDocker(
+                arguments,
+                environment: [
+                    "PGPASSWORD": configuration.password.value,
+                    "PGSSLMODE": configuration.tlsMode.rawValue
+                ],
+                standardInput: sql
+            )
 
-        guard result.succeeded else {
-            throw DatabaseStepError.databasePermissionTestFailed(details(from: result))
+            if result.succeeded {
+                console.success("SELECT, CREATE TABLE, and DROP TABLE completed in a temporary schema.")
+                return
+            }
+
+            let canRetry = attempt < maximumAttempts - 1 &&
+                isTransientPostgreSQLStartupFailure(result)
+            guard canRetry else {
+                throw DatabaseStepError.databasePermissionTestFailed(details(from: result))
+            }
+
+            console.info("PostgreSQL is still finishing startup. Retrying the SQL test…")
+            waitBeforeRetry()
         }
+    }
 
-        console.success("SELECT, CREATE TABLE, and DROP TABLE completed in a temporary schema.")
+    private func isTransientPostgreSQLStartupFailure(_ result: CommandResult) -> Bool {
+        let output = "\(result.standardOutput)\n\(result.standardError)".lowercased()
+        return output.contains("database system is starting up") ||
+            output.contains("database system is shutting down") ||
+            output.contains("connection refused") ||
+            output.contains("could not connect to server") ||
+            output.contains("server closed the connection unexpectedly")
     }
 
     private func isLoopbackHost(_ host: String) -> Bool {
