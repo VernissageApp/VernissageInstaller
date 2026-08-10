@@ -19,7 +19,7 @@ struct InstallationSummaryStepTests {
         #expect(summary.contains("schemaVersion: 2"))
         #expect(summary.contains("secretsFile: \"vernissage.secrets.yml\""))
         #expect(summary.contains("instance:\n  id: \"abcdefgh\""))
-        #expect(summary.contains("version: \"0.1.5\""))
+        #expect(summary.contains("version: \"0.1.6\""))
         #expect(summary.contains("installedAt: \"1970-01-01T00:00:00Z\""))
         #expect(summary.contains("domain: \"social.example.com\""))
         #expect(summary.contains("publicAddress: \"https://social.example.com\""))
