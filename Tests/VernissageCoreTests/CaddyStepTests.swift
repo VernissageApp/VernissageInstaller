@@ -100,6 +100,24 @@ struct CaddyStepTests {
     }
 
     @Test
+    func `Production Caddy installation records configuration before certificate verification`() throws {
+        let runner = CaddyCommandRunner(results: Array(productionResults().prefix(7)))
+        let context = makeContext(mode: .production)
+        let step = makeStep(
+            runner: runner,
+            configuration: CaddyConfigurationRecorder(),
+            output: CaddyOutputBuffer()
+        )
+
+        try step.install(context: context)
+
+        let caddy = try #require(context.caddy)
+        #expect(caddy.containerName == "vernissage-abcdefgh-caddy")
+        #expect(caddy.publicHTTPSAddress == "https://social.example.com")
+        #expect(runner.invocations.count == 7)
+    }
+
+    @Test
     func `Manual HTTPS performs no Caddy or file operations`() throws {
         let runner = CaddyCommandRunner(results: [])
         let configuration = CaddyConfigurationRecorder()
@@ -141,7 +159,7 @@ struct CaddyStepTests {
     }
 
     @Test
-    func `Unavailable HTTPS endpoint is retried and container is preserved`() {
+    func `Unavailable HTTPS endpoint preserves container and management configuration`() throws {
         let runner = CaddyCommandRunner(results: [
             .failure("container not found"),
             .success("vernissage-abcdefgh-network"),
@@ -176,7 +194,9 @@ struct CaddyStepTests {
         """
         #expect(error == .startupTimedOut(expectedDetails))
         #expect(retries.value == 1)
-        #expect(context.caddy == nil)
+        let caddy = try #require(context.caddy)
+        #expect(caddy.containerName == "vernissage-abcdefgh-caddy")
+        #expect(caddy.publicHTTPSAddress == "https://social.example.com")
         #expect(
             runner.invocations.contains {
                 $0.arguments.first == "container" && $0.arguments.contains("rm")

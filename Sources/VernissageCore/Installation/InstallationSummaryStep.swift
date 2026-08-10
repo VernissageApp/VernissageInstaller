@@ -57,6 +57,11 @@ struct InstallationSummaryStep {
     }
 
     func run(context: InstallationContext) throws {
+        try save(context: context)
+        printNextSteps()
+    }
+
+    func save(context: InstallationContext) throws {
         let installation = try collectedInstallation(from: context)
         let summary = makeSummary(
             installation: installation,
@@ -81,6 +86,9 @@ struct InstallationSummaryStep {
         console.warning("The secrets file contains unencrypted credentials. Never commit it to Git or share it.")
         console.info("Store an encrypted backup of the secrets file in a secure location.")
         console.warning("These files are not a backup of your database, media, Docker volumes, or complete Vernissage instance.")
+    }
+
+    func printNextSteps() {
         console.line("")
         console.installationNextSteps()
     }

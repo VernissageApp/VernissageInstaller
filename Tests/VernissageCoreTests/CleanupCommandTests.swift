@@ -169,6 +169,33 @@ struct CleanupCommandTests {
         #expect(cleanup.lowerBound < retry.lowerBound)
         #expect(message.contains("prefix the cleanup command with sudo"))
     }
+
+    @Test
+    func `Final readiness failure preserves configuration and recommends doctor before cleanup`() throws {
+        let message = InstallationFailureRecovery.message(
+            error: "HTTPS certificate is not ready.",
+            instanceIdentifier: "abcdefgh",
+            configurationPath: "/srv/vernissage/vernissage.yml",
+            secretsPath: "/srv/vernissage/vernissage.secrets.yml"
+        )
+
+        let saved = try #require(message.range(of: "management files were saved"))
+        let doctor = try #require(
+            message.range(
+                of: "vernissagectl --config /srv/vernissage/vernissage.yml doctor"
+            )
+        )
+        let cleanup = try #require(
+            message.range(
+                of: "vernissagectl cleanup --instance-id abcdefgh --include-volumes"
+            )
+        )
+
+        #expect(saved.lowerBound < doctor.lowerBound)
+        #expect(doctor.lowerBound < cleanup.lowerBound)
+        #expect(message.contains("Caddy can recover automatically"))
+        #expect(message.contains("/srv/vernissage/vernissage.secrets.yml"))
+    }
 }
 
 private struct CleanupCommandInvocation {

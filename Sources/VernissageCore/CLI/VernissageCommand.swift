@@ -185,13 +185,17 @@ public struct InstallCommand: ParsableCommand {
             try publicAccessStep.run(context: context, providedMode: plan?.httpsMode)
             try proxyStep.run(context: context, providedHostPort: plan?.proxyPort)
             try imageDeliveryStep.run(context: context)
-            try caddyStep.run(context: context)
-            try installationSummaryStep.run(context: context)
+            try caddyStep.install(context: context)
+            try installationSummaryStep.save(context: context)
+            try caddyStep.verify(context: context)
+            installationSummaryStep.printNextSteps()
         } catch {
             let description = if dockerResourcesMayExist {
                 InstallationFailureRecovery.message(
                     error: error.localizedDescription,
-                    instanceIdentifier: instanceIdentifier
+                    instanceIdentifier: instanceIdentifier,
+                    configurationPath: context.summaryFilePath,
+                    secretsPath: context.secretsFilePath
                 )
             } else {
                 error.localizedDescription
@@ -204,13 +208,34 @@ public struct InstallCommand: ParsableCommand {
 enum InstallationFailureRecovery {
     static func message(
         error: String,
-        instanceIdentifier: String
+        instanceIdentifier: String,
+        configurationPath: String? = nil,
+        secretsPath: String? = nil
     ) -> String {
-        """
+        var message = """
         \(error)
 
         The installation did not complete. Docker resources already created for instance \(instanceIdentifier) were preserved for diagnostics.
         First inspect the failing container with the Docker logs command shown above, when available.
+        """
+
+        if let configurationPath, let secretsPath {
+            message += """
+
+
+            The installation management files were saved before the final readiness check:
+              Configuration: \(configurationPath)
+              Secrets: \(secretsPath)
+
+            Keep the containers running while correcting the reported problem. Caddy can recover automatically after DNS, firewall, or certificate conditions are fixed.
+            Then verify the instance with:
+              vernissagectl --config \(configurationPath) doctor
+            If Docker or the saved files require elevated permissions, prefix this command with sudo.
+            """
+        }
+
+        message += """
+
 
         To discard this incomplete installation, including its local Docker volumes, run:
           vernissagectl cleanup --instance-id \(instanceIdentifier) --include-volumes
@@ -218,6 +243,7 @@ enum InstallationFailureRecovery {
         If Docker requires elevated permissions, prefix the cleanup command with sudo. If no Docker resources were created, cleanup will finish without making changes.
         After cleanup completes, run your original vernissagectl install command again.
         """
+        return message
     }
 }
 

@@ -119,7 +119,9 @@ The installer performs these steps:
     `/static-resource/`, stores the public image base URL in Vernissage, then
     restarts API and Jobs and waits for both health endpoints;
 11. optionally starts Caddy for development or production HTTPS;
-12. verifies public Web and API routing and writes the installation files.
+12. writes the installation files immediately after Caddy starts, or after the
+    manual public-access configuration is ready;
+13. verifies public Web and API routing.
 
 PostgreSQL, Redis, MinIO, API, Jobs, Web, Push, and Proxy remain on a private
 Docker network unless external access is explicitly required. The generated
@@ -171,7 +173,8 @@ shared external reverse proxy, separate Proxy ports, or separate server IPs.
 
 ### Installation files
 
-After a successful installation, the selected installation directory contains:
+After the services and optional Caddy container have been created, the selected
+installation directory contains:
 
 - `vernissage/vernissage.yml` — non-secret identity, service, container,
   volume, network, image, path, and public-access configuration;
@@ -185,6 +188,9 @@ file is referenced by relative name and ignored by Git. Keep the files together
 for future management commands and store an encrypted copy of the secrets file
 in a secure location. Neither file is a backup of PostgreSQL, S3/MinIO, or
 Docker volumes. The administrator password and access token are not persisted.
+The files remain available if the final HTTPS readiness check times out, so
+Caddy can continue obtaining its certificate and the instance can be inspected
+with `vernissagectl doctor` without repeating the installation.
 
 ### Non-interactive installation
 

@@ -71,6 +71,11 @@ struct CaddyStep {
     }
 
     func run(context: InstallationContext) throws {
+        try install(context: context)
+        try verify(context: context)
+    }
+
+    func install(context: InstallationContext) throws {
         let names = context.resourceNames
         let installation = try collectedInstallation(from: context)
 
@@ -108,37 +113,12 @@ struct CaddyStep {
             networkName: installation.proxy.networkName
         )
 
-        let rootCertificatePath: String?
-        switch installation.publicAccess.httpsMode {
-        case .development:
-            try waitUntilReady(
-                domain: installation.server.domain,
-                certificateTrust: .insecure,
-                containerName: names.caddyContainerName
-            )
-            let rootCertificateURL = caddyfileURL
+        let rootCertificatePath = installation.publicAccess.httpsMode == .development
+            ? caddyfileURL
                 .deletingLastPathComponent()
                 .appendingPathComponent("root.crt")
-            try exportLocalRootCertificate(
-                from: names.caddyContainerName,
-                to: rootCertificateURL
-            )
-            try verifyRoutes(
-                domain: installation.server.domain,
-                certificateTrust: .certificate(at: rootCertificateURL.path)
-            )
-            rootCertificatePath = rootCertificateURL.path
-        case .production:
-            try waitUntilReady(
-                domain: installation.server.domain,
-                certificateTrust: .system,
-                containerName: names.caddyContainerName
-            )
-            rootCertificatePath = nil
-        case .manual:
-            return
-        }
-
+                .path
+            : nil
         let publicHTTPSAddress = "https://\(installation.server.domain)"
         context.caddy = CaddyConfiguration(
             image: Self.image,
@@ -151,15 +131,55 @@ struct CaddyStep {
             publicHTTPSAddress: publicHTTPSAddress,
             localRootCertificatePath: rootCertificatePath
         )
+        console.success("Started Docker container: \(names.caddyContainerName)")
+    }
 
-        if let rootCertificatePath {
+    func verify(context: InstallationContext) throws {
+        let installation = try collectedInstallation(from: context)
+        guard installation.publicAccess.httpsMode != .manual else {
+            return
+        }
+        guard let caddy = context.caddy else {
+            throw CaddyStepError.missingConfiguration("Caddy")
+        }
+
+        switch installation.publicAccess.httpsMode {
+        case .development:
+            try waitUntilReady(
+                domain: installation.server.domain,
+                certificateTrust: .insecure,
+                containerName: caddy.containerName
+            )
+            guard let rootCertificatePath = caddy.localRootCertificatePath else {
+                throw CaddyStepError.missingConfiguration("Caddy local root certificate path")
+            }
+            let rootCertificateURL = URL(fileURLWithPath: rootCertificatePath)
+            try exportLocalRootCertificate(
+                from: caddy.containerName,
+                to: rootCertificateURL
+            )
+            try verifyRoutes(
+                domain: installation.server.domain,
+                certificateTrust: .certificate(at: rootCertificateURL.path)
+            )
+        case .production:
+            try waitUntilReady(
+                domain: installation.server.domain,
+                certificateTrust: .system,
+                containerName: caddy.containerName
+            )
+        case .manual:
+            return
+        }
+
+        if let rootCertificatePath = caddy.localRootCertificatePath {
             printLocalTrustInstructions(rootCertificatePath: rootCertificatePath)
         } else {
             console.success("The HTTPS certificate is publicly trusted and managed automatically by Caddy.")
         }
         console.completion(
             "Vernissage is available through Caddy over HTTPS.",
-            values: [("HTTPS endpoint", publicHTTPSAddress)]
+            values: [("HTTPS endpoint", caddy.publicHTTPSAddress)]
         )
     }
 

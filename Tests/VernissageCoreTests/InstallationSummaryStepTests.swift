@@ -45,6 +45,27 @@ struct InstallationSummaryStepTests {
     }
 
     @Test
+    func `Configuration files can be saved before final HTTPS verification`() throws {
+        let recorder = InstallationSummaryRecorder()
+        let output = InstallationSummaryOutputBuffer()
+        let context = makeCompleteContext()
+        let step = makeStep(recorder: recorder, output: output)
+
+        try step.save(context: context)
+
+        #expect(recorder.summary != nil)
+        #expect(recorder.secrets != nil)
+        #expect(context.summaryFilePath == "/tmp/vernissage/vernissage.yml")
+        #expect(context.secretsFilePath == "/tmp/vernissage/vernissage.secrets.yml")
+        #expect(output.text.contains("Installation configuration saved"))
+        #expect(output.text.contains("Next steps") == false)
+
+        step.printNextSteps()
+
+        #expect(output.text.contains("Next steps"))
+    }
+
+    @Test
     func `Public installation summary excludes every password token and secret key`() throws {
         let recorder = InstallationSummaryRecorder()
         let context = makeCompleteContext()
