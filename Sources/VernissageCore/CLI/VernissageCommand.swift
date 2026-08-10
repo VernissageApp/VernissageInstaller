@@ -8,6 +8,7 @@ public struct VernissageCommand: ParsableCommand {
         version: VernissageVersion.formatted,
         subcommands: [
             BackupCommand.self,
+            CleanupCommand.self,
             DoctorCommand.self,
             InstallCommand.self,
             LogsCommand.self,
@@ -138,6 +139,7 @@ public struct InstallCommand: ParsableCommand {
         let console = Console.live(colorsEnabled: !noColor)
         console.info("Generated installation identifier: \(instanceIdentifier)")
         console.value(label: "Installation directory", value: installationDirectory.path)
+        console.installationBetaNotice()
         if options.nonInteractive {
             console.info("Non-interactive installation plan validated. No values will be read from standard input.")
         }
@@ -156,12 +158,14 @@ public struct InstallCommand: ParsableCommand {
         let caddyStep = CaddyStep.live(colorsEnabled: !noColor)
         let installationSummaryStep = InstallationSummaryStep.live(colorsEnabled: !noColor)
 
+        var dockerResourcesMayExist = false
         do {
             try prerequisitesStep.run(context: context)
             try serverAndDomainStep.run(
                 context: context,
                 providedDomain: plan?.domain ?? options.domain
             )
+            dockerResourcesMayExist = true
             try databaseStep.run(context: context, input: plan?.database)
             try redisStep.run(context: context, input: plan?.redis)
             try storageStep.run(context: context, input: plan?.storage)
@@ -184,8 +188,36 @@ public struct InstallCommand: ParsableCommand {
             try caddyStep.run(context: context)
             try installationSummaryStep.run(context: context)
         } catch {
-            throw ValidationError(error.localizedDescription)
+            let description = if dockerResourcesMayExist {
+                InstallationFailureRecovery.message(
+                    error: error.localizedDescription,
+                    instanceIdentifier: instanceIdentifier
+                )
+            } else {
+                error.localizedDescription
+            }
+            throw ValidationError(description)
         }
+    }
+}
+
+enum InstallationFailureRecovery {
+    static func message(
+        error: String,
+        instanceIdentifier: String
+    ) -> String {
+        """
+        \(error)
+
+        The installation did not complete. Docker resources already created for instance \(instanceIdentifier) were preserved for diagnostics.
+        First inspect the failing container with the Docker logs command shown above, when available.
+
+        To discard this incomplete installation, including its local Docker volumes, run:
+          vernissagectl cleanup --instance-id \(instanceIdentifier) --include-volumes
+
+        If Docker requires elevated permissions, prefix the cleanup command with sudo. If no Docker resources were created, cleanup will finish without making changes.
+        After cleanup completes, run your original vernissagectl install command again.
+        """
     }
 }
 

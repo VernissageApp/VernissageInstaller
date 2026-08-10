@@ -92,6 +92,14 @@ struct Console {
         line("")
     }
 
+    func installationBetaNotice() {
+        line("")
+        warning(
+            "The Vernissage installer is currently in beta. Please report any errors or suggestions for improvement at https://github.com/VernissageApp/VernissageInstaller/issues"
+        )
+        line("")
+    }
+
     func warning(_ message: String) {
         line("\(styled("!", ANSI.bold + ANSI.yellow)) \(message)")
     }

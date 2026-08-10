@@ -151,7 +151,14 @@ struct WebStepTests {
             try step.run(context: context)
         }
 
-        #expect(error == .startupTimedOut("connection refused"))
+        let expectedDetails = """
+        connection refused
+        Inspect the container logs with:
+          docker logs --tail 200 vernissage-abcdefgh-web
+        If Docker requires elevated permissions:
+          sudo docker logs --tail 200 vernissage-abcdefgh-web
+        """
+        #expect(error == .startupTimedOut(expectedDetails))
         #expect(context.web == nil)
         #expect(runner.invocations.count == 6)
         #expect(

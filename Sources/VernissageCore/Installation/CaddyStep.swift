@@ -113,7 +113,8 @@ struct CaddyStep {
         case .development:
             try waitUntilReady(
                 domain: installation.server.domain,
-                certificateTrust: .insecure
+                certificateTrust: .insecure,
+                containerName: names.caddyContainerName
             )
             let rootCertificateURL = caddyfileURL
                 .deletingLastPathComponent()
@@ -130,7 +131,8 @@ struct CaddyStep {
         case .production:
             try waitUntilReady(
                 domain: installation.server.domain,
-                certificateTrust: .system
+                certificateTrust: .system,
+                containerName: names.caddyContainerName
             )
             rootCertificatePath = nil
         case .manual:
@@ -322,7 +324,8 @@ struct CaddyStep {
 
     private func waitUntilReady(
         domain: String,
-        certificateTrust: HTTPSCertificateTrust
+        certificateTrust: HTTPSCertificateTrust,
+        containerName: String
     ) throws {
         console.info("Waiting for the HTTPS endpoint and managed certificate…")
         var lastDetails: String?
@@ -345,7 +348,12 @@ struct CaddyStep {
             }
         }
 
-        throw CaddyStepError.startupTimedOut(lastDetails)
+        throw CaddyStepError.startupTimedOut(
+            DockerContainerDiagnostics.startupFailureDetails(
+                lastDetails,
+                containerName: containerName
+            )
+        )
     }
 
     private func verifyRoutes(

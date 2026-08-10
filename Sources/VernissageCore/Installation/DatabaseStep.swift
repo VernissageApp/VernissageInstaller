@@ -5,7 +5,7 @@ enum DatabaseStepError: LocalizedError, Equatable {
     case dockerCommandFailed(action: String, details: String?)
     case localContainerAlreadyExists(String)
     case localVolumeAlreadyExists(String)
-    case localDatabaseStartupTimedOut
+    case localDatabaseStartupTimedOut(String)
     case databasePermissionTestFailed(String?)
 
     var errorDescription: String? {
@@ -18,8 +18,8 @@ enum DatabaseStepError: LocalizedError, Equatable {
             "A Docker container named \(name) already exists. To protect its data, the installer will not replace it automatically."
         case .localVolumeAlreadyExists(let name):
             "A Docker volume named \(name) already exists. It may contain PostgreSQL data, so the installer will not reuse or remove it automatically."
-        case .localDatabaseStartupTimedOut:
-            "The local PostgreSQL container did not become ready in time. It has been preserved for diagnostics."
+        case .localDatabaseStartupTimedOut(let details):
+            "The local PostgreSQL container did not become ready in time. It has been preserved for diagnostics. Details: \(details)"
         case .databasePermissionTestFailed(let details):
             Self.message(
                 "The PostgreSQL connection or migration permission test failed.",
@@ -316,7 +316,12 @@ struct DatabaseStep {
             }
         }
 
-        throw DatabaseStepError.localDatabaseStartupTimedOut
+        throw DatabaseStepError.localDatabaseStartupTimedOut(
+            DockerContainerDiagnostics.startupFailureDetails(
+                nil,
+                containerName: containerName
+            )
+        )
     }
 
     private func testDatabase(

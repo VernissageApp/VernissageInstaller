@@ -182,7 +182,10 @@ struct ImageDeliveryStep {
 
         throw ImageDeliveryStepError.serviceStartupTimedOut(
             service: service,
-            details: lastDetails
+            details: DockerContainerDiagnostics.startupFailureDetails(
+                lastDetails,
+                containerName: containerName
+            )
         )
     }
 

@@ -167,7 +167,14 @@ struct CaddyStepTests {
             try step.run(context: context)
         }
 
-        #expect(error == .startupTimedOut("connection refused"))
+        let expectedDetails = """
+        connection refused
+        Inspect the container logs with:
+          docker logs --tail 200 vernissage-abcdefgh-caddy
+        If Docker requires elevated permissions:
+          sudo docker logs --tail 200 vernissage-abcdefgh-caddy
+        """
+        #expect(error == .startupTimedOut(expectedDetails))
         #expect(retries.value == 1)
         #expect(context.caddy == nil)
         #expect(

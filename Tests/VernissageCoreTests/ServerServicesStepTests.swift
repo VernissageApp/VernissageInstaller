@@ -180,10 +180,17 @@ struct ServerServicesStepTests {
         let error = #expect(throws: ServerServicesStepError.self) {
             try step.run(context: context)
         }
+        let expectedDetails = """
+        database=true, queue=true, webPush=false, storage=false
+        Inspect the container logs with:
+          docker logs --tail 200 vernissage-abcdefgh-api
+        If Docker requires elevated permissions:
+          sudo docker logs --tail 200 vernissage-abcdefgh-api
+        """
         #expect(
             error == .serviceStartupTimedOut(
                 service: "API",
-                details: "database=true, queue=true, webPush=false, storage=false"
+                details: expectedDetails
             )
         )
         #expect(context.serverServices == nil)

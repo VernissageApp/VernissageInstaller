@@ -244,10 +244,15 @@ struct ProxyStepTests {
             try step.run(context: context)
         }
 
+        let expectedDetails = """
+        JSON Accept-header routing did not return the Vernissage API root response.
+        Inspect the container logs with:
+          docker logs --tail 200 vernissage-abcdefgh-proxy
+        If Docker requires elevated permissions:
+          sudo docker logs --tail 200 vernissage-abcdefgh-proxy
+        """
         #expect(
-            error == .startupTimedOut(
-                "JSON Accept-header routing did not return the Vernissage API root response."
-            )
+            error == .startupTimedOut(expectedDetails)
         )
         #expect(context.proxy == nil)
         #expect(

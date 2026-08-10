@@ -328,7 +328,10 @@ struct ServerServicesStep {
 
         throw ServerServicesStepError.serviceStartupTimedOut(
             service: service,
-            details: lastDetails
+            details: DockerContainerDiagnostics.startupFailureDetails(
+                lastDetails,
+                containerName: containerName
+            )
         )
     }
 

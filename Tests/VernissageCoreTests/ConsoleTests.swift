@@ -91,6 +91,23 @@ struct ConsoleTests {
         #expect(output.text.contains("Thank you for choosing Vernissage"))
         #expect(output.text.hasSuffix("\n\n"))
     }
+
+    @Test
+    func `Beta notice is separated and links to the issue tracker`() {
+        let output = ConsoleOutputBuffer()
+        let console = Console(
+            colorsEnabled: false,
+            writeOutput: output.append
+        )
+
+        console.installationBetaNotice()
+
+        #expect(output.text.hasPrefix("\n"))
+        #expect(output.text.hasSuffix("\n\n"))
+        #expect(output.text.contains("! The Vernissage installer is currently in beta."))
+        #expect(output.text.contains("Please report any errors or suggestions for improvement"))
+        #expect(output.text.contains("https://github.com/VernissageApp/VernissageInstaller/issues"))
+    }
 }
 
 private final class PromptVisibilityProbe {

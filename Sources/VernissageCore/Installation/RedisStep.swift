@@ -220,7 +220,10 @@ struct RedisStep {
             )
         )
 
-        try waitForLocalRedis(configuration)
+        try waitForLocalRedis(
+            configuration,
+            containerName: names.redisContainerName
+        )
         try testRedis(configuration, dockerNetwork: names.networkName)
         context.redis = configuration
         console.success("Local Redis is running in \(names.redisContainerName).")
@@ -294,7 +297,10 @@ struct RedisStep {
         console.success("Started Docker container: \(names.redisContainerName)")
     }
 
-    private func waitForLocalRedis(_ configuration: RedisConfiguration) throws {
+    private func waitForLocalRedis(
+        _ configuration: RedisConfiguration,
+        containerName: String
+    ) throws {
         console.info("Waiting for Redis to accept authenticated connections…")
         var lastDetails: String?
 
@@ -315,7 +321,12 @@ struct RedisStep {
             }
         }
 
-        throw RedisStepError.localRedisStartupTimedOut(lastDetails)
+        throw RedisStepError.localRedisStartupTimedOut(
+            DockerContainerDiagnostics.startupFailureDetails(
+                lastDetails,
+                containerName: containerName
+            )
+        )
     }
 
     private func testRedis(

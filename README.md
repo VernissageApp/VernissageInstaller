@@ -46,6 +46,7 @@ vernissagectl --help
 | Command | Purpose |
 |---|---|
 | `vernissagectl install` | Installs and configures a new Vernissage instance. |
+| `vernissagectl cleanup --instance-id <id> [--include-volumes]` | Removes Docker resources left by an incomplete installation. |
 | `vernissagectl services` | Shows which services are local, external, and managed by the installer. |
 | `vernissagectl status` | Shows the runtime state of installer-managed containers. |
 | `vernissagectl doctor [--full]` | Diagnoses configuration, dependencies, routing, and service health. |
@@ -64,8 +65,8 @@ specific command.
 
 ## Selecting an installation
 
-Commands other than `install` load an existing `vernissage.yml`. Select it with
-the shared `--config` option (`-f`):
+Commands that manage a successfully installed instance load an existing
+`vernissage.yml`. Select it with the shared `--config` option (`-f`):
 
 ```bash
 vernissagectl --config /srv/vernissage/vernissage.yml status
@@ -82,6 +83,7 @@ The loader never searches parent directories and never falls back when an
 explicit path is invalid. This prevents a command from accidentally managing a
 different instance on a host with multiple installations. The referenced
 `vernissage.secrets.yml` is always resolved relative to `vernissage.yml`.
+`install`, `cleanup`, and `version` do not load an installation configuration.
 
 ## `install`
 
@@ -262,6 +264,40 @@ Conditional options:
   When omitted, the identifier is generated automatically.
 
 Run `vernissagectl install --help` for the complete option list.
+
+If installation stops after creating Docker resources, its error message keeps
+the failed container available for diagnostics and prints the relevant
+`docker logs` command. It then shows the exact `cleanup` command for the
+generated instance identifier and recommends running the original installation
+command again after cleanup.
+
+## `cleanup`
+
+```bash
+vernissagectl cleanup --instance-id abcdefgh
+vernissagectl cleanup --instance-id abcdefgh --include-volumes
+```
+
+Removes Docker resources left by an incomplete installation without requiring
+a generated `vernissage.yml`. Use the eight-letter identifier printed at the
+beginning of `install`. The command inspects only the deterministic container,
+volume, network, and Proxy image names belonging to that identifier.
+
+By default, cleanup removes existing Vernissage containers, the private network,
+and the locally built, instance-specific Proxy image. It preserves PostgreSQL,
+Redis, MinIO, and Caddy volumes and reports their names.
+
+`--include-volumes` also permanently removes those volumes. This is the
+recommended way to discard a failed first installation before starting again:
+
+```bash
+vernissagectl cleanup --instance-id abcdefgh --include-volumes
+vernissagectl install
+```
+
+Prefix both commands with `sudo` when the current user cannot access the Docker
+daemon directly. Registry-backed images shared with other installations and
+files in the selected installation directory are never removed.
 
 ## `services`
 

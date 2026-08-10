@@ -265,7 +265,10 @@ struct StorageStep {
             )
         )
 
-        try createMinIOBucket(configuration)
+        try createMinIOBucket(
+            configuration,
+            containerName: names.minIOContainerName
+        )
         try configureMinIOPublicRead(configuration)
         try testStorage(
             configuration,
@@ -300,7 +303,9 @@ struct StorageStep {
             return
         }
 
-        console.info("Building MinIO \(Self.minIORelease) from its official source…")
+        console.info(
+            "Building MinIO \(Self.minIORelease) from its official source. This operation can take several minutes…"
+        )
         let result = try runDocker(
             ["build", "--quiet", "--tag", Self.minIOImage, "-"],
             standardInput: Self.minIODockerfile
@@ -359,7 +364,10 @@ struct StorageStep {
         console.success("Started Docker container: \(names.minIOContainerName)")
     }
 
-    private func createMinIOBucket(_ configuration: StorageConfiguration) throws {
+    private func createMinIOBucket(
+        _ configuration: StorageConfiguration,
+        containerName: String
+    ) throws {
         console.info("Waiting for MinIO and creating bucket \(Self.minIOBucket)…")
         var lastDetails: String?
 
@@ -380,7 +388,12 @@ struct StorageStep {
             }
         }
 
-        throw StorageStepError.minIOStartupTimedOut(lastDetails)
+        throw StorageStepError.minIOStartupTimedOut(
+            DockerContainerDiagnostics.startupFailureDetails(
+                lastDetails,
+                containerName: containerName
+            )
+        )
     }
 
     private func configureMinIOPublicRead(

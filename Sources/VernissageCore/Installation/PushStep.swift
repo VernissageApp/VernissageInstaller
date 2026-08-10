@@ -215,7 +215,12 @@ struct PushStep {
             lastDetails = details(from: result)
         }
 
-        throw PushStepError.startupTimedOut(lastDetails)
+        throw PushStepError.startupTimedOut(
+            DockerContainerDiagnostics.startupFailureDetails(
+                lastDetails,
+                containerName: containerName
+            )
+        )
     }
 
     private func updateSettings(

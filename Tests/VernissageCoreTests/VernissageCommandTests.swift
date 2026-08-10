@@ -38,6 +38,17 @@ struct VernissageCommandTests {
     }
 
     @Test
+    func `Root command recognizes incomplete installation cleanup`() throws {
+        let command = try VernissageCommand.parseAsRoot([
+            "cleanup",
+            "--instance-id", "abcdefgh",
+            "--include-volumes"
+        ])
+
+        #expect(command is CleanupCommand)
+    }
+
+    @Test
     func `Install command parses non-secret options`() throws {
         let command = try InstallCommand.parse([
             "--domain", "social.example.com",

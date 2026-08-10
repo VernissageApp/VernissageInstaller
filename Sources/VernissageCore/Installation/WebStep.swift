@@ -226,7 +226,12 @@ struct WebStep {
             lastDetails = details(from: result)
         }
 
-        throw WebStepError.startupTimedOut(lastDetails)
+        throw WebStepError.startupTimedOut(
+            DockerContainerDiagnostics.startupFailureDetails(
+                lastDetails,
+                containerName: containerName
+            )
+        )
     }
 
     private func runDocker(

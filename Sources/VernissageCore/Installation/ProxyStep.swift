@@ -116,7 +116,8 @@ struct ProxyStep {
         )
         try waitUntilReady(
             installation: installation,
-            hostPort: hostPort
+            hostPort: hostPort,
+            containerName: names.proxyContainerName
         )
 
         let publicHTTPAddress = hostPort.map {
@@ -420,7 +421,8 @@ struct ProxyStep {
 
     private func waitUntilReady(
         installation: CollectedProxyInstallation,
-        hostPort: UInt16?
+        hostPort: UInt16?,
+        containerName: String
     ) throws {
         if let hostPort {
             console.info("Waiting up to approximately 30 seconds for API and Web routing on host port \(hostPort)…")
@@ -493,7 +495,12 @@ struct ProxyStep {
             return
         }
 
-        throw ProxyStepError.startupTimedOut(lastDetails)
+        throw ProxyStepError.startupTimedOut(
+            DockerContainerDiagnostics.startupFailureDetails(
+                lastDetails,
+                containerName: containerName
+            )
+        )
     }
 
     private func curl(
